@@ -1,8 +1,6 @@
 name: Build APK with Buildozer
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       build_type:
@@ -16,7 +14,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04   # 关键：使用 Ubuntu 22.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
@@ -37,7 +35,7 @@ jobs:
             autoconf libtool pkg-config \
             zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
             cmake libffi-dev libssl-dev \
-            libtool-bin autoconf-archive  # 额外需要
+            libtool-bin autoconf-archive
           pip install --upgrade pip
 
       - name: Install Buildozer and Cython
