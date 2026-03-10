@@ -1,4 +1,4 @@
-name: Minimal Capacitor APK (Redirect)
+name: Minimal Cordova APK
 
 on:
   workflow_dispatch:
@@ -6,14 +6,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
 
       - name: Set up Node.js
@@ -21,53 +20,22 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Capacitor
-        run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+      - name: Install Cordova
+        run: npm install -g cordova
 
-      - name: Initialize npm project
-        run: npm init -y
-
-      - name: Create redirect HTML
+      - name: Create Cordova project
         run: |
-          mkdir -p www
-          cat > www/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>加载中...</title>
-    <script>
-        // 立即跳转到您的网站
-        window.location.href = 'https://www.yingtux.cn';
-    </script>
-</head>
-<body>
-    <h1>正在跳转至网站...</h1>
-    <p>如果长时间无反应，请<a href="https://www.yingtux.cn">点击这里</a></p>
-</body>
-</html>
-EOF
-          echo "index.html 已创建"
-
-      - name: Initialize Capacitor
-        run: npx cap init YingTuApp com.yingtux.app --web-dir www
-
-      - name: Add Android platform
-        run: npx cap add android
-
-      - name: Ensure network permission
-        run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
-          sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
+          cordova create testApp com.example.test TestApp
+          cd testApp
+          cordova platform add android
 
       - name: Build APK
         run: |
-          cd android
-          ./gradlew assembleDebug
+          cd testApp
+          cordova build android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app-redirect
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-debug
+          path: testApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
