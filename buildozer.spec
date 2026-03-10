@@ -8,7 +8,7 @@ source.include_exts = py,png,jpg,kv,ttf
 
 version = 0.1
 
-requirements = python3,kivy==2.3.0,pyjnius==1.6.1,android
+requirements = python3,kivy==2.3.0,pyjnius==1.7.0,android
 
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
 
@@ -25,7 +25,6 @@ android.sdk = 33
 
 android.icon.filename = %(source.dir)s/logo.png
 
-# 在构建前安装指定版本的 Cython，避免兼容性问题
 android.bootstrap_build_pre = pip install cython==0.29.36
 
 [buildozer]
