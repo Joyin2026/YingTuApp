@@ -166,7 +166,7 @@ def main():
 </head>
 <body>
     <div class="container">
-        <img id="adImage" class="ad-image" src="img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
+        <img id="adImage" class="ad-image" src="../img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
         <div id="adText" style="font-size:28px; font-weight:bold; display:none;">🎉 精彩广告位 🎉</div>
         <p>5秒后自动进入网站</p>
         <div class="countdown" id="countdown">5 秒后跳转</div>
