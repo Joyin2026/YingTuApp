@@ -1,4 +1,4 @@
-name: Minimal Cordova APK
+name: Minimal Cordova APK - Load Website
 
 on:
   workflow_dispatch:
@@ -27,6 +27,10 @@ jobs:
         run: |
           cordova create testApp com.example.test TestApp
           cd testApp
+          # 修改 config.xml，将起始页设为您的网站
+          sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
+          # 添加网络权限
+          sed -i '/<widget/ a \    <access origin="*" />' config.xml
           cordova platform add android
 
       - name: Build APK
@@ -37,5 +41,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: yingtu-website-app
           path: testApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
