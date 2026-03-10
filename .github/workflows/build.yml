@@ -42,6 +42,21 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Fix Kotlin version conflict
+        run: |
+          cd android/app
+          # 在 build.gradle 末尾添加 resolutionStrategy
+          cat >> build.gradle << 'EOF'
+
+configurations.all {
+    resolutionStrategy {
+        force 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22'
+    }
+}
+EOF
+          echo "已添加 Kotlin 版本强制配置"
+
       - name: Build APK
         run: |
           cd android
