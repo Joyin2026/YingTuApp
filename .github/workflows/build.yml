@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: '构建类型 (debug / release)'
+        description: '构建类型 (debug/release)'
         required: true
         default: 'debug'
         type: choice
@@ -17,8 +17,7 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -41,100 +40,50 @@ jobs:
           pip install pillow
           npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      - name: Create web assets
+      - name: Prepare web assets
         run: |
-          # 创建 www 目录，存放广告页和图片
           mkdir -p www/img
-          # 复制广告页模板（如果有则保留，否则创建默认）
-          if [ -f "ad.html" ]; then
-            cp ad.html www/
-          else
-            cat > www/ad.html << 'EOF'
+          # 生成默认广告页
+          cat > www/ad.html << 'EOF'
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>开屏广告</title>
-    <script>
-        setTimeout(function() {
-            window.location.href = 'https://www.yingtux.cn';
-        }, 5000);
-        function skip() {
-            window.location.href = 'https://www.yingtux.cn';
-        }
-    </script>
-    <style>
-        body { margin:0; padding:20px; background:#f0f0f0; text-align:center; font-family:sans-serif; }
-        .container { min-height:80vh; display:flex; flex-direction:column; justify-content:center; }
-        .ad-image { max-width:90%; max-height:50vh; margin:20px auto; border:2px solid #007aff; }
-        .countdown { font-size:24px; margin:20px; }
-        .skip-btn { padding:15px 40px; background:#007aff; color:white; border:none; border-radius:8px; font-size:18px; cursor:pointer; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <img id="adImage" class="ad-image" src="img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
-        <div id="adText" style="font-size:28px; font-weight:bold; display:none;">🎉 精彩广告位 🎉</div>
-        <p>5秒后自动进入网站</p>
-        <div class="countdown" id="countdown">5 秒后跳转</div>
-        <button class="skip-btn" onclick="skip()">立即跳过</button>
-    </div>
-    <script>
-        var seconds = 5;
-        var countdownEl = document.getElementById('countdown');
-        var timer = setInterval(function() {
-            seconds--;
-            if (seconds <= 0) {
-                clearInterval(timer);
-            } else {
-                countdownEl.innerText = seconds + ' 秒后跳转';
-            }
-        }, 1000);
-    </script>
-</body>
+<head><meta charset="utf-8"><title>广告</title><script>setTimeout(()=>{location.href='https://www.yingtux.cn';},5000);function skip(){location.href='https://www.yingtux.cn';}</script></head>
+<body style="text-align:center;padding-top:20vh;"><h1>开屏广告</h1><p>5秒后进入网站</p><button onclick="skip()">跳过</button></body>
 </html>
 EOF
-          fi
-          # 复制广告图片
-          if [ -f "img/ad.png" ]; then
-            cp img/ad.png www/img/
-          fi
-          # 复制启动画面图片到 native 资源目录（稍后处理）
+          # 复制广告图（如果有）
+          if [ -f "img/ad.png" ]; then cp img/ad.png www/img/; fi
+          # 准备启动画面（后续复制到原生目录）
           if [ -f "img/splash.png" ]; then
             mkdir -p android/app/src/main/res/drawable
             cp img/splash.png android/app/src/main/res/drawable/splash.png
           fi
 
-      - name: Generate icons with Python
+      - name: Generate icons
         run: |
+          if [ ! -f "logo.png" ]; then echo "缺少logo.png" && exit 1; fi
           mkdir -p android/app/src/main/res
-          python scripts/generate_icons.py
+          for size in 48 72 96 144 192; do
+            folder="mipmap-$( [ $size -eq 48 ] && echo "mdpi"; [ $size -eq 72 ] && echo "hdpi"; [ $size -eq 96 ] && echo "xhdpi"; [ $size -eq 144 ] && echo "xxhdpi"; [ $size -eq 192 ] && echo "xxxhdpi" )"
+            mkdir -p "android/app/src/main/res/$folder"
+            convert logo.png -resize ${size}x${size} "android/app/src/main/res/$folder/ic_launcher.png"
+          done
 
-      - name: Initialize Capacitor
+      - name: Init Capacitor
         run: |
           npx cap init YingTuSpace com.yingtux.app --web-dir www
           npx cap add android
-          # 修改 capacitor.config.json 设置起始页
+          # 直接修改配置，使应用加载网站
           sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
 
-      - name: Sync and copy native assets
-        run: |
-          npx cap copy
-          # 将启动画面图片复制到正确位置（Capacitor 原生目录）
-          if [ -f "img/splash.png" ]; then
-            cp img/splash.png android/app/src/main/res/drawable/splash.png
-          fi
+      - name: Sync and copy
+        run: npx cap copy
 
       - name: Build APK
-        run: |
-          cd android
-          ./gradlew assembleDebug
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
+        run: cd android && ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
+          name: yingtu-app-${{ github.event.inputs.build_type }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
