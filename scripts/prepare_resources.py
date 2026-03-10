@@ -33,10 +33,11 @@ def main():
         sys.exit(1)
     os.chdir('webapp')
 
+    # 创建资源目录
     os.makedirs('res/icon/android', exist_ok=True)
     os.makedirs('res/screen/android', exist_ok=True)
 
-    # 生成图标
+    # 生成图标（使用 logo.png）
     icon_src = '../logo.png'
     if not os.path.exists(icon_src):
         print('错误：缺少 logo.png')
@@ -47,7 +48,7 @@ def main():
         resize_icon(icon_src, dst, size)
         print(f'生成图标: {dst}')
 
-    # 生成启动画面
+    # 生成启动画面（使用 splash.png）
     splash_src = '../splash.png'
     if not os.path.exists(splash_src):
         print('错误：缺少 splash.png')
@@ -81,40 +82,67 @@ def main():
         with open(config_path, 'r') as f:
             content = f.read()
 
-    # 插入图标和启动画面配置（避免重复）
+    # 插入图标配置（确保不重复）
     if '<icon density=' not in content:
         icon_lines = [f'        <icon density="{d}" src="res/icon/android/icon-{d}.png" />' for d in icon_sizes]
-        splash_lines = [f'        <splash density="{d}" src="res/screen/android/splash-{d}.png" />' for d in splash_sizes]
-        insert_text = '\n' + '\n'.join(icon_lines + splash_lines)
-        new_content = content.replace(platform_tag, platform_tag + insert_text)
-        print('插入图标/启动画面配置')
+        # 在 platform 标签后插入
+        new_content = content.replace(platform_tag, platform_tag + '\n' + '\n'.join(icon_lines))
+        with open(config_path, 'w') as f:
+            f.write(new_content)
+        with open(config_path, 'r') as f:
+            content = f.read()
+        print('已插入图标配置')
     else:
-        new_content = content
-        print('图标/启动画面配置已存在，跳过')
+        print('图标配置已存在，跳过')
 
-    # 添加启动画面首选项（延迟显示，并允许自动隐藏）
+    # 插入启动画面配置（确保不重复）
+    if '<splash density=' not in content:
+        splash_lines = [f'        <splash density="{d}" src="res/screen/android/splash-{d}.png" />' for d in splash_sizes]
+        new_content = content.replace(platform_tag, platform_tag + '\n' + '\n'.join(splash_lines))
+        with open(config_path, 'w') as f:
+            f.write(new_content)
+        with open(config_path, 'r') as f:
+            content = f.read()
+        print('已插入启动画面配置')
+    else:
+        print('启动画面配置已存在，跳过')
+
+    # 添加启动画面首选项（关键设置）
     preferences = [
         '<preference name="SplashScreen" value="screen" />',
         '<preference name="SplashScreenDelay" value="5000" />',
-        '<preference name="AutoHideSplashScreen" value="true" />',  # 改为 true，让插件自动隐藏
+        '<preference name="AutoHideSplashScreen" value="false" />',  # 由我们手动隐藏
         '<preference name="FadeSplashScreen" value="false" />',
         '<preference name="ShowSplashScreenSpinner" value="false" />'
     ]
-    # 在 <widget> 内插入
-    widget_end = new_content.find('>', new_content.find('<widget')) + 1
+    # 在 <widget> 后插入
+    widget_end = content.find('>', content.find('<widget')) + 1
     pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
-    new_content = new_content[:widget_end] + pref_text + new_content[widget_end:]
+    content = content[:widget_end] + pref_text + content[widget_end:]
 
     # 添加 allow-navigation
     allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
-    platform_index = new_content.find('<platform')
-    new_content = new_content[:platform_index] + allow_nav + new_content[platform_index:]
+    platform_index = content.find('<platform')
+    content = content[:platform_index] + allow_nav + content[platform_index:]
+
+    # 添加资源文件复制指令（确保图片被正确打包）
+    resource_files = [
+        '<resource-file src="res/screen/android/splash-mdpi.png" target="res/drawable-port-mdpi/splash.png" />',
+        '<resource-file src="res/screen/android/splash-hdpi.png" target="res/drawable-port-hdpi/splash.png" />',
+        '<resource-file src="res/screen/android/splash-xhdpi.png" target="res/drawable-port-xhdpi/splash.png" />',
+        '<resource-file src="res/screen/android/splash-xxhdpi.png" target="res/drawable-port-xxhdpi/splash.png" />',
+        '<resource-file src="res/screen/android/splash-xxxhdpi.png" target="res/drawable-port-xxxhdpi/splash.png" />'
+    ]
+    resource_text = '\n'.join(resource_files) + '\n'
+    # 插入在 platform 标签内
+    platform_end = content.find('</platform>', content.find(platform_tag))
+    content = content[:platform_end] + resource_text + content[platform_end:]
 
     with open(config_path, 'w') as f:
-        f.write(new_content)
-    print('已添加启动画面首选项和 allow-navigation')
+        f.write(content)
+    print('已添加启动画面首选项、allow-navigation 和资源文件复制指令')
 
-    # 创建广告页面（包含 cordova.js 和启动画面隐藏代码）
+    # 创建广告页面（必选，包含广告图和 Cordova 隐藏启动画面代码）
     os.makedirs('www/img', exist_ok=True)
     with open('www/ad.html', 'w') as f:
         f.write('''<!DOCTYPE html>
@@ -123,44 +151,31 @@ def main():
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>开屏广告</title>
-    <meta http-equiv="refresh" content="5;url=https://www.yingtux.cn">
     <script src="cordova.js"></script>
     <style>
-        body { margin:0; padding:20px; background:#f0f0f0; text-align:center; font-family:sans-serif; }
-        .container { min-height:80vh; display:flex; flex-direction:column; justify-content:center; }
-        .ad-image { max-width:90%; max-height:50vh; margin:20px auto; border:2px solid #ccc; }
+        body { margin:0; padding:0; background:#000; color:#fff; font-family:sans-serif; text-align:center; }
+        .container { display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; }
+        .ad-image { max-width:90%; max-height:70vh; border:2px solid #fff; }
         .countdown { font-size:24px; margin:20px; }
         .skip-btn { padding:15px 40px; background:#007aff; color:white; border:none; border-radius:8px; font-size:18px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔥 开屏广告</h1>
-        <img id="adImage" class="ad-image" style="display:none;" />
-        <div id="adText" style="font-size:28px; font-weight:bold;">🎉 精彩广告位 🎉</div>
+        <img id="adImage" class="ad-image" src="img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
+        <div id="adText" style="font-size:28px; font-weight:bold; display:none;">🎉 精彩广告位 🎉</div>
         <p>5秒后自动进入网站</p>
         <div class="countdown" id="countdown">5 秒后跳转</div>
         <button class="skip-btn" onclick="skipAd()">立即跳过</button>
     </div>
     <script>
-        // 等待 Cordova 设备就绪
         document.addEventListener('deviceready', function() {
-            // 隐藏启动画面（确保它消失）
+            // 隐藏启动画面
             if (navigator.splashscreen) {
                 navigator.splashscreen.hide();
+                console.log('启动画面已隐藏');
             }
-            console.log('启动画面已隐藏');
         }, false);
-
-        // 广告图片处理
-        var img = new Image();
-        img.onload = function() {
-            document.getElementById('adImage').src = 'img/ad.png';
-            document.getElementById('adImage').style.display = 'block';
-            document.getElementById('adText').style.display = 'none';
-        };
-        img.onerror = function() { };
-        img.src = 'img/ad.png';
 
         var seconds = 5;
         var countdownEl = document.getElementById('countdown');
@@ -181,12 +196,15 @@ def main():
     </script>
 </body>
 </html>''')
-    print('广告页面已生成（含启动画面隐藏代码）')
+    print('广告页面已生成')
 
-    # 复制广告图片
+    # 复制广告图片（必须存在）
     if os.path.exists('../../ad.png'):
         shutil.copy('../../ad.png', 'www/img/ad.png')
-        print('广告图片已复制')
+        print('广告图片已复制到 www/img/ad.png')
+    else:
+        print('错误：缺少 ad.png')
+        sys.exit(1)  # 广告图必选，缺失则终止构建
 
 if __name__ == '__main__':
     main()
