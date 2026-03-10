@@ -202,7 +202,7 @@ def main():
     print('广告页面已生成')
 
     # 复制广告图片（从 img 目录复制到 www/img/）
-    ad_src = '../../img/ad.png'
+    ad_src = '../img/ad.png'
     if os.path.exists(ad_src):
         shutil.copy(ad_src, 'www/img/ad.png')
         print(f'广告图片已从 {ad_src} 复制到 www/img/ad.png')
