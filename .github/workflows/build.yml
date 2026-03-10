@@ -1,7 +1,16 @@
-name: Minimal Cordova Trigger Test
+name: Build Cordova APK
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型 (debug / release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
 jobs:
   build:
@@ -26,17 +35,28 @@ jobs:
 
       - name: Create Cordova project
         run: |
-          cordova create testApp com.example.test TestApp
-          cd testApp
+          cordova create YingTuSpace com.yingtux.app "影图空间"
+          cd YingTuSpace
+          # 设置起始页为 ad.html
+          sed -i 's|<content src="index.html" />|<content src="ad.html" />|' config.xml
           cordova platform add android
+          cordova plugin add cordova-plugin-splashscreen
 
       - name: Build APK
+        id: build
         run: |
-          cd testApp
-          cordova build android
+          cd YingTuSpace
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          cordova build android --$BUILD_TYPE --verbose
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="YingTuSpace/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            APK_PATH="YingTuSpace/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: testApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
+          path: ${{ steps.build.outputs.apk_path }}
