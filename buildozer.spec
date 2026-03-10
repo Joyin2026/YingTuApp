@@ -11,8 +11,8 @@ version = 0.1
 # version.regex = __version__ = ['"](.*)['"]
 # version.filename = %(source.dir)s/main.py
 
-# 依赖库
-requirements = python3,kivy,pyjnius,android
+# 依赖库 - 使用兼容 Python 3 的版本
+requirements = python3,kivy==2.3.0,pyjnius==1.6.0,android
 
 # 权限
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
