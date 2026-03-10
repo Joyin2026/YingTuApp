@@ -86,25 +86,28 @@ jobs:
 
           echo "图标和启动画面生成完成"
 
+      # 使用脚本方式修改 config.xml，避免复杂的 YAML 转义问题
       - name: Configure icons and splash in config.xml
         run: |
           cd webapp
           cp config.xml config.xml.bak
-
-          # 插入图标配置
-          sed -i '/<platform name="android">/a \        <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
-
-          # 插入启动画面配置
-          sed -i '/<platform name="android">/a \        <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />' config.xml
-          sed -i '/<platform name="android">/a \        <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
-
+          # 创建包含所有 sed 命令的脚本
+          cat > update_config.sh << 'EOF'
+#!/bin/bash
+set -e
+sed -i '/<platform name="android">/a \        <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />' config.xml
+sed -i '/<platform name="android">/a \        <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
+EOF
+          chmod +x update_config.sh
+          ./update_config.sh
           echo "config.xml 已更新"
 
       - name: Create ad.html (splash ad page)
