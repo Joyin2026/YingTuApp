@@ -1,15 +1,19 @@
-name: Minimal Cordova APK - Load Website
+name: Package Website into Android APK
 
 on:
+  push:
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
+    runs-on: ubuntu-latest
 
-      - name: Set up Java 17
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -20,40 +24,32 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Cordova
-        run: npm install -g cordova
-
       - name: Create Cordova project
         run: |
-          cordova create testApp com.example.test TestApp
-          cd testApp
-          # 修改起始页
+          npm install -g cordova
+          cordova create webapp com.yingtux.app 影途社
+          cd webapp
+          # 设置起始页为你的网站
           sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
-          # 添加全面的网络权限
+          # 添加网络访问权限（关键！）
           sed -i '/<widget/ a \    <access origin="*" />' config.xml
-          sed -i '/<widget/ a \    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
-          sed -i '/<widget/ a \    <allow-intent href="http://*/*" />' config.xml
-          sed -i '/<widget/ a \    <allow-intent href="https://*/*" />' config.xml
-          # 添加网络安全配置（允许所有内容）
-          sed -i '/<widget/ a \    <preference name="AndroidInsecureFileModeEnabled" value="true" />' config.xml
-          # 添加 platform 特定配置
-          echo '<platform name="android">' >> config.xml
-          echo '    <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">' >> config.xml
-          echo '        <application android:usesCleartextTraffic="true" />' >> config.xml
-          echo '    </edit-config>' >> config.xml
-          echo '</platform>' >> config.xml
-
           cordova platform add android
-          # 安装 whitelist 插件
-          cordova plugin add cordova-plugin-whitelist
+
+      # 可选：自定义应用图标（如果根目录有 logo.png）
+      # - name: Customize App Icon
+      #   run: |
+      #     cd webapp
+      #     mkdir -p platforms/android/app/src/main/res/mipmap-xxxhdpi/
+      #     cp ../logo.png platforms/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+      #     # 其他尺寸可自行补充
 
       - name: Build APK
         run: |
-          cd testApp
-          cordova build android
+          cd webapp
+          cordova build android --verbose
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: yingtu-website-app
-          path: testApp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          path: webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
