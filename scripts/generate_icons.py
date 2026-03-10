@@ -13,7 +13,6 @@ def main():
         print('错误：缺少 logo.png')
         return
 
-    # Android 图标目录
     base = 'android/app/src/main/res'
     sizes = {
         'mipmap-mdpi': 48,
