@@ -93,7 +93,7 @@ def main():
     pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
     content = content[:widget_end] + pref_text + content[widget_end:]
 
-    # 添加 allow-navigation（workflow 已加，这里可保留）
+    # 添加 allow-navigation（工作流中已添加，但保留也无妨）
     allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
     platform_index = content.find('<platform')
     content = content[:platform_index] + allow_nav + content[platform_index:]
