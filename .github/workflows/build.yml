@@ -109,7 +109,7 @@ EOF
       - name: Generate icons with Python
         run: |
           mkdir -p android/app/src/main/res
-          python scripts/generate_icons.py   # 自定义脚本生成各密度图标
+          python scripts/generate_icons.py
 
       - name: Initialize Capacitor
         run: |
@@ -117,8 +117,6 @@ EOF
           npx cap add android
           # 修改 capacitor.config.json 设置起始页
           sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
-          # 或者设置本地广告页：如果希望先加载本地广告页，则设置 "server": { "url": "http://localhost" } 并确保广告页存在
-          # 但为了简化，我们直接加载网站，跳过广告页
 
       - name: Sync and copy native assets
         run: |
