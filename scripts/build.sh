@@ -1,9 +1,8 @@
 #!/bin/bash
-set -e  # 遇到错误立即退出
+set -e
 
 echo "===== 开始构建 APK ====="
 
-# 进入工作目录
 cd webapp || { echo "错误：webapp 目录不存在"; exit 1; }
 
 # 1. 生成图标和启动画面
@@ -49,14 +48,14 @@ fi
 echo "修改 config.xml..."
 cp config.xml config.xml.bak
 
-# 使用 echo 和 sed 的组合来插入配置，避免复杂的 sed 脚本问题
-# 首先确保 platform android 块存在（通常已存在）
-# 在 platform 标签后插入图标和启动画面配置
+# 插入图标配置
 sed -i '/<platform name="android">/a \        <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
+
+# 插入启动画面配置
 sed -i '/<platform name="android">/a \        <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />' config.xml
 sed -i '/<platform name="android">/a \        <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />' config.xml
@@ -129,11 +128,10 @@ cd ../..
 
 # 4. 构建 APK
 echo "构建 APK..."
-BUILD_TYPE=${1:-debug}  # 第一个参数指定构建类型，默认为 debug
+BUILD_TYPE=${1:-debug}
 echo "构建类型: $BUILD_TYPE"
 cordova build android --$BUILD_TYPE --verbose
 
-# 输出 APK 路径供后续步骤使用
 if [ "$BUILD_TYPE" = "debug" ]; then
     APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
 else
