@@ -21,7 +21,7 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE
 orientation = portrait
 fullscreen = 1
 
-# 图标和启动画面（Kivy 默认不处理启动画面，但我们可以通过 splash 图片实现）
+# 图标和启动画面
 android.gradle_dependencies = 'org.kivy:android:1.0'
 android.add_src = .
 
