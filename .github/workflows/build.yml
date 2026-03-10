@@ -1,3 +1,47 @@
+name: Build Cordova APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型 (debug / release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pillow
+          npm install -g cordova
+
+      # 注意：项目名改为英文，避免中文字符导致 config.xml 解析失败
       - name: Create Cordova project
         run: |
           cordova create webapp com.yingtux.app YingTuSpace
@@ -11,3 +55,59 @@
           sed -i 's|<widget|<widget\n    <access origin="*" />\n    <allow-navigation href="https://www.yingtux.cn/*" />|' config.xml
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
+
+      - name: Prepare resources with Python
+        run: python scripts/prepare_resources.py
+
+      # 再次强制修改平台下的 config.xml，确保起始页正确
+      - name: Force correct content src in platform config
+        run: |
+          cd webapp
+          CONFIG_FILE="platforms/android/app/src/main/res/xml/config.xml"
+          if [ -f "$CONFIG_FILE" ]; then
+            echo "修改前 content 行:"
+            grep '<content' "$CONFIG_FILE" || true
+            sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' "$CONFIG_FILE"
+            echo "修改后 content 行:"
+            grep '<content' "$CONFIG_FILE"
+          else
+            echo "错误：找不到 $CONFIG_FILE"
+            exit 1
+          fi
+
+      # 检查 AndroidManifest.xml 网络权限
+      - name: Ensure internet permission in AndroidManifest.xml
+        run: |
+          cd webapp
+          MANIFEST="platforms/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            # 确保有 INTERNET 权限
+            if ! grep -q '<uses-permission android:name="android.permission.INTERNET"' "$MANIFEST"; then
+              sed -i '/<application/ i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+              echo "已添加 INTERNET 权限"
+            fi
+            # 添加 cleartext 允许（如果网站是 HTTP 才需要，但 HTTPS 不需要，为了保险可加上）
+            if ! grep -q 'android:usesCleartextTraffic="true"' "$MANIFEST"; then
+              sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
+              echo "已添加 usesCleartextTraffic"
+            fi
+          fi
+
+      - name: Build APK
+        id: build
+        run: |
+          cd webapp
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          cordova build android --$BUILD_TYPE --verbose
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
+          path: ${{ steps.build.outputs.apk_path }}
