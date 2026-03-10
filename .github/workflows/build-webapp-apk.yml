@@ -46,69 +46,35 @@ jobs:
         run: |
           cd webapp
           sudo apt-get update && sudo apt-get install -y imagemagick
+          mkdir -p res/icon/android res/screen/android
 
-          mkdir -p res/icon/android
-          mkdir -p res/screen/android
-
-          # 生成图标（使用 logo.png）
-          ICON_SRC="../logo.png"
-          if [ ! -f "$ICON_SRC" ]; then
-            echo "错误：未找到根目录下的 logo.png 文件！"
+          # 生成图标
+          if [ -f "../logo.png" ]; then
+            for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $size in mdpi) res=48 ;; hdpi) res=72 ;; xhdpi) res=96 ;; xxhdpi) res=144 ;; xxxhdpi) res=192 ;; esac
+              convert ../logo.png -resize ${res}x${res} res/icon/android/icon-$size.png
+            done
+          else
+            echo "错误：缺少 logo.png"
             exit 1
           fi
-          for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            case $size in
-              mdpi)    res=48 ;;
-              hdpi)    res=72 ;;
-              xhdpi)   res=96 ;;
-              xxhdpi)  res=144 ;;
-              xxxhdpi) res=192 ;;
-            esac
-            convert $ICON_SRC -resize ${res}x${res} res/icon/android/icon-$size.png
-          done
 
-          # 生成启动画面（使用 splash.png）
-          SPLASH_SRC="../splash.png"
-          if [ ! -f "$SPLASH_SRC" ]; then
-            echo "错误：未找到根目录下的 splash.png 文件！"
+          # 生成启动画面
+          if [ -f "../splash.png" ]; then
+            for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $size in mdpi) w=320;h=480 ;; hdpi) w=480;h=800 ;; xhdpi) w=720;h=1280 ;; xxhdpi) w=960;h=1600 ;; xxxhdpi) w=1280;h=1920 ;; esac
+              convert ../splash.png -resize ${w}x${h}^ -gravity center -background white -extent ${w}x${h} res/screen/android/splash-$size.png
+            done
+          else
+            echo "错误：缺少 splash.png"
             exit 1
           fi
-          for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            case $size in
-              mdpi)    width=320; height=480 ;;
-              hdpi)    width=480; height=800 ;;
-              xhdpi)   width=720; height=1280 ;;
-              xxhdpi)  width=960; height=1600 ;;
-              xxxhdpi) width=1280; height=1920 ;;
-            esac
-            convert $SPLASH_SRC -resize ${width}x${height}^ -gravity center -background white -extent ${width}x${height} res/screen/android/splash-$size.png
-          done
 
           echo "图标和启动画面生成完成"
 
-      # 使用脚本方式修改 config.xml，避免复杂的 YAML 转义问题
+      # 调用独立的脚本文件更新 config.xml
       - name: Configure icons and splash in config.xml
-        run: |
-          cd webapp
-          cp config.xml config.xml.bak
-          # 创建包含所有 sed 命令的脚本
-          cat > update_config.sh << 'EOF'
-#!/bin/bash
-set -e
-sed -i '/<platform name="android">/a \        <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />' config.xml
-sed -i '/<platform name="android">/a \        <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
-EOF
-          chmod +x update_config.sh
-          ./update_config.sh
-          echo "config.xml 已更新"
+        run: bash scripts/update_config.sh
 
       - name: Create ad.html (splash ad page)
         run: |
@@ -121,11 +87,11 @@ EOF
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>开屏广告</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #ffffff; font-family: sans-serif; }
-        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
-        .ad-image { max-width: 90%; max-height: 70vh; margin-bottom: 20px; }
-        .countdown { font-size: 18px; color: #666; margin-top: 20px; }
-        .skip-btn { margin-top: 30px; padding: 10px 30px; background-color: #007aff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+        body { margin:0; padding:0; background:#fff; font-family:sans-serif; }
+        .container { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+        .ad-image { max-width:90%; max-height:70vh; margin-bottom:20px; }
+        .countdown { font-size:18px; color:#666; margin-top:20px; }
+        .skip-btn { margin-top:30px; padding:10px 30px; background:#007aff; color:#fff; border:none; border-radius:5px; font-size:16px; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -168,12 +134,7 @@ EOF
 EOF
 
           mkdir -p img
-          if [ -f "../../ad.png" ]; then
-            cp ../../ad.png img/ad.png
-            echo "广告图片已复制"
-          else
-            echo "未找到 ad.png，广告页将显示文字"
-          fi
+          if [ -f "../../ad.png" ]; then cp ../../ad.png img/ad.png; fi
           cd ../..
 
       - name: Build APK
@@ -181,12 +142,9 @@ EOF
         run: |
           cd webapp
           BUILD_TYPE="${{ github.event.inputs.build_type }}"
-          if [ -z "$BUILD_TYPE" ]; then
-            BUILD_TYPE="debug"
-          fi
+          if [ -z "$BUILD_TYPE" ]; then BUILD_TYPE="debug"; fi
           echo "构建类型: $BUILD_TYPE"
           cordova build android --$BUILD_TYPE --verbose
-
           if [ "$BUILD_TYPE" = "debug" ]; then
             APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
           else
