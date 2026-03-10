@@ -21,8 +21,8 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Capacitor
-        run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+      - name: Install Capacitor CLI globally
+        run: npm install -g @capacitor/cli
 
       - name: Initialize npm project
         run: npm init -y
@@ -31,6 +31,9 @@ jobs:
         run: |
           mkdir -p www
           echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading...</title></head><body>Redirecting...</body></html>' > www/index.html
+
+      - name: Install Capacitor Android locally
+        run: npm install @capacitor/android
 
       - name: Initialize Capacitor project
         run: npx cap init YingTuApp com.yingtux.app --web-dir www
