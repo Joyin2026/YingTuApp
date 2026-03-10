@@ -55,7 +55,7 @@ def main():
     for density, (w, h) in splash_sizes.items():
         create_splash(splash_src, f'res/screen/android/splash-{density}.png', w, h)
 
-    # 修改 config.xml（仅添加图标和启动画面配置）
+    # 修改 config.xml（仅添加图标和启动画面配置，不修改 content）
     config_path = 'config.xml'
     shutil.copy(config_path, config_path + '.bak')
     with open(config_path, 'r') as f:
