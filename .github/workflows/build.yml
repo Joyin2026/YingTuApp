@@ -27,7 +27,7 @@ jobs:
       - name: Create Cordova project
         run: |
           npm install -g cordova
-          cordova create webapp com.yingtux.app 影途社
+          cordova create webapp com.yingtux.app 影图APP
           cd webapp
           # 设置起始页为你的网站
           sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
