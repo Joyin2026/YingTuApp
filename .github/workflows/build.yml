@@ -1,10 +1,10 @@
-name: Build APK with Capacitor
+name: Build Cordova APK
 
 on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: '构建类型 (debug/release)'
+        description: '构建类型 (debug / release)'
         required: true
         default: 'debug'
         type: choice
@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -38,52 +39,75 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pillow
-          npm install -g @capacitor/cli @capacitor/core @capacitor/android
+          npm install -g cordova
 
-      - name: Prepare web assets
+      # 注意：项目名改为英文，避免中文字符导致 config.xml 解析失败
+      - name: Create Cordova project
         run: |
-          mkdir -p www/img
-          # 生成默认广告页
-          cat > www/ad.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>广告</title><script>setTimeout(()=>{location.href='https://www.yingtux.cn';},5000);function skip(){location.href='https://www.yingtux.cn';}</script></head>
-<body style="text-align:center;padding-top:20vh;"><h1>开屏广告</h1><p>5秒后进入网站</p><button onclick="skip()">跳过</button></body>
-</html>
-EOF
-          # 复制广告图（如果有）
-          if [ -f "img/ad.png" ]; then cp img/ad.png www/img/; fi
-          # 准备启动画面（后续复制到原生目录）
-          if [ -f "img/splash.png" ]; then
-            mkdir -p android/app/src/main/res/drawable
-            cp img/splash.png android/app/src/main/res/drawable/splash.png
+          cordova create webapp com.yingtux.app YingTuSpace
+          cd webapp
+          # 设置起始页
+          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
+          # 添加访问权限（允许所有外部链接）
+          sed -i '/<allow-navigation/d' config.xml
+          sed -i '/<access /d' config.xml
+          # 在 <widget> 内添加 access 和 allow-navigation
+          sed -i 's|<widget|<widget\n    <access origin="*" />\n    <allow-navigation href="https://www.yingtux.cn/*" />|' config.xml
+          cordova platform add android
+          cordova plugin add cordova-plugin-splashscreen
+
+      - name: Prepare resources with Python
+        run: python scripts/prepare_resources.py
+
+      # 再次强制修改平台下的 config.xml，确保起始页正确
+      - name: Force correct content src in platform config
+        run: |
+          cd webapp
+          CONFIG_FILE="platforms/android/app/src/main/res/xml/config.xml"
+          if [ -f "$CONFIG_FILE" ]; then
+            echo "修改前 content 行:"
+            grep '<content' "$CONFIG_FILE" || true
+            sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' "$CONFIG_FILE"
+            echo "修改后 content 行:"
+            grep '<content' "$CONFIG_FILE"
+          else
+            echo "错误：找不到 $CONFIG_FILE"
+            exit 1
           fi
 
-      - name: Generate icons
+      # 检查 AndroidManifest.xml 网络权限
+      - name: Ensure internet permission in AndroidManifest.xml
         run: |
-          if [ ! -f "logo.png" ]; then echo "缺少logo.png" && exit 1; fi
-          mkdir -p android/app/src/main/res
-          for size in 48 72 96 144 192; do
-            folder="mipmap-$( [ $size -eq 48 ] && echo "mdpi"; [ $size -eq 72 ] && echo "hdpi"; [ $size -eq 96 ] && echo "xhdpi"; [ $size -eq 144 ] && echo "xxhdpi"; [ $size -eq 192 ] && echo "xxxhdpi" )"
-            mkdir -p "android/app/src/main/res/$folder"
-            convert logo.png -resize ${size}x${size} "android/app/src/main/res/$folder/ic_launcher.png"
-          done
-
-      - name: Init Capacitor
-        run: |
-          npx cap init YingTuSpace com.yingtux.app --web-dir www
-          npx cap add android
-          # 直接修改配置，使应用加载网站
-          sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
-
-      - name: Sync and copy
-        run: npx cap copy
+          cd webapp
+          MANIFEST="platforms/android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            # 确保有 INTERNET 权限
+            if ! grep -q '<uses-permission android:name="android.permission.INTERNET"' "$MANIFEST"; then
+              sed -i '/<application/ i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+              echo "已添加 INTERNET 权限"
+            fi
+            # 添加 cleartext 允许（如果网站是 HTTP 才需要，但 HTTPS 不需要，为了保险可加上）
+            if ! grep -q 'android:usesCleartextTraffic="true"' "$MANIFEST"; then
+              sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
+              echo "已添加 usesCleartextTraffic"
+            fi
+          fi
 
       - name: Build APK
-        run: cd android && ./gradlew assembleDebug
+        id: build
+        run: |
+          cd webapp
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          cordova build android --$BUILD_TYPE --verbose
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app-${{ github.event.inputs.build_type }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
+          path: ${{ steps.build.outputs.apk_path }}
