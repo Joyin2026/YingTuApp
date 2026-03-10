@@ -1,31 +1,91 @@
-#!/usr/bin/env python3
-import os
-from PIL import Image
+name: Build APK with Capacitor
 
-def resize_icon(src, dst, size):
-    img = Image.open(src)
-    img = img.resize((size, size), Image.Resampling.LANCZOS)
-    img.save(dst)
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型 (debug/release)'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
 
-def main():
-    icon_src = 'logo.png'
-    if not os.path.exists(icon_src):
-        print('错误：缺少 logo.png')
-        return
+jobs:
+  build:
+    runs-on: ubuntu-22.04
 
-    base = 'android/app/src/main/res'
-    sizes = {
-        'mipmap-mdpi': 48,
-        'mipmap-hdpi': 72,
-        'mipmap-xhdpi': 96,
-        'mipmap-xxhdpi': 144,
-        'mipmap-xxxhdpi': 192
-    }
-    for folder, size in sizes.items():
-        os.makedirs(f'{base}/{folder}', exist_ok=True)
-        dst = f'{base}/{folder}/ic_launcher.png'
-        resize_icon(icon_src, dst, size)
-        print(f'生成: {dst}')
+    steps:
+      - uses: actions/checkout@v4
 
-if __name__ == '__main__':
-    main()
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install pillow
+          npm install -g @capacitor/cli @capacitor/core @capacitor/android
+
+      - name: Prepare web assets
+        run: |
+          mkdir -p www/img
+          cat > www/ad.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>开屏广告</title><script>setTimeout(()=>{location.href='https://www.yingtux.cn';},5000);function skip(){location.href='https://www.yingtux.cn';}</script></head>
+<body style="text-align:center;padding-top:20vh;"><h1>开屏广告</h1><p>5秒后自动进入网站</p><button onclick="skip()">立即跳过</button></body>
+</html>
+EOF
+          if [ -f "img/ad.png" ]; then cp img/ad.png www/img/; fi
+          if [ -f "img/splash.png" ]; then
+            mkdir -p android/app/src/main/res/drawable
+            cp img/splash.png android/app/src/main/res/drawable/splash.png
+          fi
+
+      - name: Generate icons
+        run: |
+          if [ ! -f "logo.png" ]; then echo "缺少logo.png" && exit 1; fi
+          mkdir -p android/app/src/main/res
+          for size in 48 72 96 144 192; do
+            case $size in
+              48) folder="mipmap-mdpi" ;;
+              72) folder="mipmap-hdpi" ;;
+              96) folder="mipmap-xhdpi" ;;
+              144) folder="mipmap-xxhdpi" ;;
+              192) folder="mipmap-xxxhdpi" ;;
+            esac
+            mkdir -p "android/app/src/main/res/$folder"
+            convert logo.png -resize ${size}x${size} "android/app/src/main/res/$folder/ic_launcher.png"
+          done
+
+      - name: Init Capacitor
+        run: |
+          npx cap init YingTuSpace com.yingtux.app --web-dir www
+          npx cap add android
+          sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
+
+      - name: Sync and copy
+        run: npx cap copy
+
+      - name: Build APK
+        run: cd android && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: yingtu-app-${{ github.event.inputs.build_type }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
