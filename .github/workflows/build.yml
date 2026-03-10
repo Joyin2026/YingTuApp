@@ -45,12 +45,23 @@ jobs:
         run: |
           cordova create webapp com.yingtux.app 影图空间
           cd webapp
-          sed -i 's|<content src="index.html" />|<content src="ad.html" />|' config.xml
+          # 直接设置起始页为你的网站
+          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
+          echo "初始 content 行:"
+          grep '<content' config.xml || true
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
 
       - name: Prepare resources with Python
         run: python scripts/prepare_resources.py
+
+      # 再次强制确保 content 正确
+      - name: Final content check
+        run: |
+          cd webapp
+          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
+          echo "最终 content 行:"
+          grep '<content' config.xml
 
       - name: Build APK
         id: build
