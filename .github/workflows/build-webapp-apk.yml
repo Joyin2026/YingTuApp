@@ -33,6 +33,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: pip install pillow
+
       - name: Install Cordova and create project
         run: |
           npm install -g cordova
@@ -42,9 +50,21 @@ jobs:
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
 
-      - name: Run build script
+      - name: Prepare resources with Python
+        run: python scripts/prepare_resources.py
+
+      - name: Build APK
         id: build
-        run: bash scripts/build.sh ${{ github.event.inputs.build_type || 'debug' }}
+        run: |
+          cd webapp
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          cordova build android --$BUILD_TYPE --verbose
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
