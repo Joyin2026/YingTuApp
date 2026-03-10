@@ -1,14 +1,12 @@
 name: Package Website into Android APK
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       build_type:
-        description: '构建类型 (debug / release)'
+        description: '构建类型 (debug/release)'
         required: true
-        default: 'release'
+        default: 'debug'
         type: choice
         options:
           - debug
