@@ -25,14 +25,27 @@ jobs:
 
       - name: Create Cordova project
         run: |
-          cordova create testApp com.example.test TestApp
+          cordova create testApp com.example.test 影图APP
           cd testApp
-          # 修改起始页为您的网站
+          # 修改起始页
           sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
-          # 添加网络权限（关键！）
+          # 添加全面的网络权限
           sed -i '/<widget/ a \    <access origin="*" />' config.xml
           sed -i '/<widget/ a \    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
+          sed -i '/<widget/ a \    <allow-intent href="http://*/*" />' config.xml
+          sed -i '/<widget/ a \    <allow-intent href="https://*/*" />' config.xml
+          # 添加网络安全配置（允许所有内容）
+          sed -i '/<widget/ a \    <preference name="AndroidInsecureFileModeEnabled" value="true" />' config.xml
+          # 添加 platform 特定配置
+          echo '<platform name="android">' >> config.xml
+          echo '    <edit-config file="app/src/main/AndroidManifest.xml" mode="merge" target="/manifest/application">' >> config.xml
+          echo '        <application android:usesCleartextTraffic="true" />' >> config.xml
+          echo '    </edit-config>' >> config.xml
+          echo '</platform>' >> config.xml
+
           cordova platform add android
+          # 安装 whitelist 插件
+          cordova plugin add cordova-plugin-whitelist
 
       - name: Build APK
         run: |
