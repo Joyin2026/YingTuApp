@@ -124,12 +124,15 @@ if [ -f "../../ad.png" ]; then
     cp ../../ad.png img/ad.png
 fi
 
-cd ../..
+# 修正：只退回到 webapp 目录，而不是项目根之外
+cd ..
 
 # 4. 构建 APK
 echo "构建 APK..."
 BUILD_TYPE=${1:-debug}
 echo "构建类型: $BUILD_TYPE"
+# 确认当前目录
+pwd
 cordova build android --$BUILD_TYPE --verbose
 
 if [ "$BUILD_TYPE" = "debug" ]; then
