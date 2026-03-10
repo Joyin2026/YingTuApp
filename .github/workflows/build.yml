@@ -1,4 +1,4 @@
-name: Build Capacitor App
+name: Build Minimal Capacitor App
 
 on:
   workflow_dispatch:
@@ -7,16 +7,44 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
-      - run: mkdir -p www && echo '<h1>Hello World</h1>' > www/index.html
-      - run: npx cap init "影图空间" "com.yingtux.app" --web-dir www
-      - run: npx cap add android
-      - run: cd android && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+
+      - name: Install Capacitor globally
+        run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+
+      - name: Initialize npm project and create web assets
+        run: |
+          # 1. 创建 npm 项目（生成 package.json）
+          npm init -y
+          
+          # 2. 创建 www 目录和简单的 index.html
+          mkdir -p www
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Test</title></head><body><h1>Hello from Capacitor!</h1></body></html>' > www/index.html
+
+      - name: Initialize Capacitor project
+        run: |
+          # 3. 初始化 Capacitor（必须在有 package.json 的目录下运行）
+          npx cap init "影图空间" "com.yingtux.app" --web-dir www
+
+      - name: Add Android platform
+        run: |
+          # 4. 添加 Android 平台
+          npx cap add android
+
+      - name: Build APK
+        run: |
+          # 5. 进入 Android 项目并构建
+          cd android
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
