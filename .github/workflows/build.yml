@@ -1,4 +1,4 @@
-name: Build Cordova APK
+name: Build APK with Capacitor
 
 on:
   workflow_dispatch:
@@ -39,75 +39,104 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pillow
-          npm install -g cordova
+          npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
-      # 注意：项目名改为英文，避免中文字符导致 config.xml 解析失败
-      - name: Create Cordova project
+      - name: Create web assets
         run: |
-          cordova create webapp com.yingtux.app YingTuSpace
-          cd webapp
-          # 设置起始页
-          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
-          # 添加访问权限（允许所有外部链接）
-          sed -i '/<allow-navigation/d' config.xml
-          sed -i '/<access /d' config.xml
-          # 在 <widget> 内添加 access 和 allow-navigation
-          sed -i 's|<widget|<widget\n    <access origin="*" />\n    <allow-navigation href="https://www.yingtux.cn/*" />|' config.xml
-          cordova platform add android
-          cordova plugin add cordova-plugin-splashscreen
-
-      - name: Prepare resources with Python
-        run: python scripts/prepare_resources.py
-
-      # 再次强制修改平台下的 config.xml，确保起始页正确
-      - name: Force correct content src in platform config
-        run: |
-          cd webapp
-          CONFIG_FILE="platforms/android/app/src/main/res/xml/config.xml"
-          if [ -f "$CONFIG_FILE" ]; then
-            echo "修改前 content 行:"
-            grep '<content' "$CONFIG_FILE" || true
-            sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' "$CONFIG_FILE"
-            echo "修改后 content 行:"
-            grep '<content' "$CONFIG_FILE"
+          # 创建 www 目录，存放广告页和图片
+          mkdir -p www/img
+          # 复制广告页模板（如果有则保留，否则创建默认）
+          if [ -f "ad.html" ]; then
+            cp ad.html www/
           else
-            echo "错误：找不到 $CONFIG_FILE"
-            exit 1
+            cat > www/ad.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>开屏广告</title>
+    <script>
+        setTimeout(function() {
+            window.location.href = 'https://www.yingtux.cn';
+        }, 5000);
+        function skip() {
+            window.location.href = 'https://www.yingtux.cn';
+        }
+    </script>
+    <style>
+        body { margin:0; padding:20px; background:#f0f0f0; text-align:center; font-family:sans-serif; }
+        .container { min-height:80vh; display:flex; flex-direction:column; justify-content:center; }
+        .ad-image { max-width:90%; max-height:50vh; margin:20px auto; border:2px solid #007aff; }
+        .countdown { font-size:24px; margin:20px; }
+        .skip-btn { padding:15px 40px; background:#007aff; color:white; border:none; border-radius:8px; font-size:18px; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img id="adImage" class="ad-image" src="img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
+        <div id="adText" style="font-size:28px; font-weight:bold; display:none;">🎉 精彩广告位 🎉</div>
+        <p>5秒后自动进入网站</p>
+        <div class="countdown" id="countdown">5 秒后跳转</div>
+        <button class="skip-btn" onclick="skip()">立即跳过</button>
+    </div>
+    <script>
+        var seconds = 5;
+        var countdownEl = document.getElementById('countdown');
+        var timer = setInterval(function() {
+            seconds--;
+            if (seconds <= 0) {
+                clearInterval(timer);
+            } else {
+                countdownEl.innerText = seconds + ' 秒后跳转';
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
+EOF
+          fi
+          # 复制广告图片
+          if [ -f "img/ad.png" ]; then
+            cp img/ad.png www/img/
+          fi
+          # 复制启动画面图片到 native 资源目录（稍后处理）
+          if [ -f "img/splash.png" ]; then
+            mkdir -p android/app/src/main/res/drawable
+            cp img/splash.png android/app/src/main/res/drawable/splash.png
           fi
 
-      # 检查 AndroidManifest.xml 网络权限
-      - name: Ensure internet permission in AndroidManifest.xml
+      - name: Generate icons with Python
         run: |
-          cd webapp
-          MANIFEST="platforms/android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            # 确保有 INTERNET 权限
-            if ! grep -q '<uses-permission android:name="android.permission.INTERNET"' "$MANIFEST"; then
-              sed -i '/<application/ i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
-              echo "已添加 INTERNET 权限"
-            fi
-            # 添加 cleartext 允许（如果网站是 HTTP 才需要，但 HTTPS 不需要，为了保险可加上）
-            if ! grep -q 'android:usesCleartextTraffic="true"' "$MANIFEST"; then
-              sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
-              echo "已添加 usesCleartextTraffic"
-            fi
+          mkdir -p android/app/src/main/res
+          python scripts/generate_icons.py   # 自定义脚本生成各密度图标
+
+      - name: Initialize Capacitor
+        run: |
+          npx cap init YingTuSpace com.yingtux.app --web-dir www
+          npx cap add android
+          # 修改 capacitor.config.json 设置起始页
+          sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
+          # 或者设置本地广告页：如果希望先加载本地广告页，则设置 "server": { "url": "http://localhost" } 并确保广告页存在
+          # 但为了简化，我们直接加载网站，跳过广告页
+
+      - name: Sync and copy native assets
+        run: |
+          npx cap copy
+          # 将启动画面图片复制到正确位置（Capacitor 原生目录）
+          if [ -f "img/splash.png" ]; then
+            cp img/splash.png android/app/src/main/res/drawable/splash.png
           fi
 
       - name: Build APK
-        id: build
         run: |
-          cd webapp
-          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
-          cordova build android --$BUILD_TYPE --verbose
-          if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
-          else
-            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          fi
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          cd android
+          ./gradlew assembleDebug
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
-          path: ${{ steps.build.outputs.apk_path }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
