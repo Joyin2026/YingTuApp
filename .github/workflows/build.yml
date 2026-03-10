@@ -1,4 +1,4 @@
-name: Minimal Capacitor APK
+name: Minimal Capacitor APK (Redirect)
 
 on:
   workflow_dispatch:
@@ -16,97 +16,58 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Verify Java version
-        run: java -version
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Capacitor CLI globally
-        run: npm install -g @capacitor/cli
+      - name: Install Capacitor
+        run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
 
       - name: Initialize npm project
         run: npm init -y
 
-      - name: Create minimal web assets
+      - name: Create redirect HTML
         run: |
           mkdir -p www
-          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading...</title></head><body>Redirecting...</body></html>' > www/index.html
+          cat > www/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>加载中...</title>
+    <script>
+        // 立即跳转到您的网站
+        window.location.href = 'https://www.yingtux.cn';
+    </script>
+</head>
+<body>
+    <h1>正在跳转至网站...</h1>
+    <p>如果长时间无反应，请<a href="https://www.yingtux.cn">点击这里</a></p>
+</body>
+</html>
+EOF
+          echo "index.html 已创建"
 
-      - name: Install Capacitor Android locally
-        run: npm install @capacitor/android
-
-      - name: Initialize Capacitor project
+      - name: Initialize Capacitor
         run: npx cap init YingTuApp com.yingtux.app --web-dir www
 
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Configure app to load your website directly
-        run: |
-          # 直接修改 capacitor.config.json 设置 server.url
-          cat > capacitor.config.json << EOF
-{
-  "appId": "com.yingtux.app",
-  "appName": "YingTuApp",
-  "webDir": "www",
-  "server": {
-    "url": "https://www.yingtux.cn",
-    "cleartext": true
-  }
-}
-EOF
-          echo "已写入 capacitor.config.json:"
-          cat capacitor.config.json
-
-      - name: Fix Kotlin version conflict in build.gradle
-        run: |
-          echo "" >> android/app/build.gradle
-          echo "configurations.all {" >> android/app/build.gradle
-          echo "    resolutionStrategy {" >> android/app/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.0'" >> android/app/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0'" >> android/app/build.gradle
-          echo "    }" >> android/app/build.gradle
-          echo "}" >> android/app/build.gradle
-          echo "已添加 Kotlin 版本强制配置"
-
-      - name: Ensure network permissions in AndroidManifest.xml
+      - name: Ensure network permission
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            # 添加 INTERNET 权限（如果不存在）
-            if ! grep -q '<uses-permission android:name="android.permission.INTERNET"' "$MANIFEST"; then
-              sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
-              echo "已添加 INTERNET 权限"
-            fi
-            # 添加 usesCleartextTraffic 允许混合内容
-            if ! grep -q 'android:usesCleartextTraffic="true"' "$MANIFEST"; then
-              sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
-              echo "已添加 usesCleartextTraffic"
-            fi
-            # 输出最终 AndroidManifest.xml 供检查
-            echo "AndroidManifest.xml 关键部分:"
-            grep -A5 '<application' "$MANIFEST"
-          else
-            echo "错误：找不到 AndroidManifest.xml"
-            exit 1
-          fi
-
-      - name: Sync Capacitor
-        run: npx cap sync
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+          sed -i 's|<application |<application android:usesCleartextTraffic="true" |' "$MANIFEST"
 
       - name: Build APK
         run: |
           cd android
-          export JAVA_HOME=$JAVA_HOME_21_X64
-          ./gradlew clean assembleDebug --no-daemon
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app
+          name: yingtu-app-redirect
           path: android/app/build/outputs/apk/debug/app-debug.apk
