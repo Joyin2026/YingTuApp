@@ -74,6 +74,7 @@ def main():
     with open(config_path, 'r') as f:
         content = f.read()
     
+    # 确保有 android platform 标签
     platform_tag = '<platform name="android">'
     if platform_tag not in content:
         print('未找到<platform name="android">，将自动创建')
@@ -90,17 +91,39 @@ def main():
         with open(config_path, 'r') as f:
             content = f.read()
     
-    # 准备要插入的配置
+    # 插入图标和启动画面配置
     icon_lines = [f'        <icon density="{d}" src="res/icon/android/icon-{d}.png" />' for d in icon_sizes]
     splash_lines = [f'        <splash density="{d}" src="res/screen/android/splash-{d}.png" />' for d in splash_sizes]
     insert_text = '\n' + '\n'.join(icon_lines + splash_lines)
     
+    # 在 platform 标签内插入
     new_content = content.replace(platform_tag, platform_tag + insert_text)
+    
+    # 添加启动画面首选项（在 <widget> 内，platform 之外）
+    preferences = [
+        '<preference name="SplashScreen" value="screen" />',
+        '<preference name="SplashScreenDelay" value="5000" />',
+        '<preference name="AutoHideSplashScreen" value="false" />',
+        '<preference name="FadeSplashScreen" value="false" />',
+        '<preference name="ShowSplashScreenSpinner" value="false" />'
+    ]
+    # 在 <widget> 内第一个标签后插入
+    widget_start = '<widget'
+    widget_end_index = new_content.find('>', new_content.find(widget_start)) + 1
+    pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
+    new_content = new_content[:widget_end_index] + pref_text + new_content[widget_end_index:]
+    
+    # 添加 allow-navigation 允许目标网站
+    allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
+    # 在 platform 之前插入
+    platform_index = new_content.find('<platform')
+    new_content = new_content[:platform_index] + allow_nav + new_content[platform_index:]
+    
     with open(config_path, 'w') as f:
         f.write(new_content)
-    print('config.xml已更新')
+    print('config.xml 已更新（添加了启动画面首选项和 allow-navigation）')
     
-    # 创建广告页面
+    # 创建广告页面（增加明显标识）
     os.makedirs('www/img', exist_ok=True)
     with open('www/ad.html', 'w') as f:
         f.write('''<!DOCTYPE html>
@@ -110,30 +133,38 @@ def main():
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>开屏广告</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #ffffff; font-family: sans-serif; }
-        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
-        .ad-image { max-width: 90%; max-height: 70vh; margin-bottom: 20px; }
-        .countdown { font-size: 18px; color: #666; margin-top: 20px; }
-        .skip-btn { margin-top: 30px; padding: 10px 30px; background-color: #007aff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; }
+        body { margin: 0; padding: 20px; background-color: #f0f0f0; font-family: sans-serif; text-align: center; }
+        .container { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; }
+        .ad-image { max-width: 90%; max-height: 50vh; margin: 20px auto; border: 2px solid #ccc; }
+        .countdown { font-size: 24px; color: #333; margin: 20px; }
+        .skip-btn { padding: 15px 40px; background-color: #007aff; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; }
+        .debug { color: red; font-size: 14px; margin-top: 20px; }
     </style>
+    <!-- 5秒后跳转 -->
     <meta http-equiv="refresh" content="5;url=https://www.yingtux.cn">
 </head>
 <body>
     <div class="container">
+        <h1>🔥 这里是开屏广告</h1>
         <img id="adImage" class="ad-image" style="display:none;" />
-        <div id="adText" style="font-size:24px; font-weight:bold; color:#333;">🎉 精彩广告位 🎉</div>
+        <div id="adText" style="font-size:28px; font-weight:bold; color:#333;">🎉 精彩广告位 🎉</div>
         <p style="color:#888;">5秒后自动进入网站</p>
         <div class="countdown" id="countdown">5 秒后跳转</div>
         <button class="skip-btn" onclick="skipAd()">立即跳过</button>
+        <div class="debug" id="debugMsg"></div>
     </div>
     <script>
+        // 尝试加载广告图片
         var img = new Image();
         img.onload = function() {
             document.getElementById('adImage').src = 'img/ad.png';
             document.getElementById('adImage').style.display = 'block';
             document.getElementById('adText').style.display = 'none';
+            document.getElementById('debugMsg').innerText += '广告图片已加载。';
         };
-        img.onerror = function() { };
+        img.onerror = function() {
+            document.getElementById('debugMsg').innerText += '广告图片不存在，显示文字。';
+        };
         img.src = 'img/ad.png';
 
         var seconds = 5;
@@ -142,6 +173,7 @@ def main():
             seconds--;
             if (seconds <= 0) {
                 clearInterval(timer);
+                countdownEl.innerText = '正在跳转...';
             } else {
                 countdownEl.innerText = seconds + ' 秒后跳转';
             }
@@ -151,15 +183,20 @@ def main():
             clearInterval(timer);
             window.location.href = 'https://www.yingtux.cn';
         }
+
+        // 显示调试信息
+        document.getElementById('debugMsg').innerText += ' 广告页面已加载，倒计时开始。';
     </script>
 </body>
 </html>''')
-    print('广告页面已生成')
+    print('广告页面已生成（含调试信息）')
     
     # 复制广告图片
     if os.path.exists('../../ad.png'):
         shutil.copy('../../ad.png', 'www/img/ad.png')
         print('广告图片已复制')
+    else:
+        print('未找到 ad.png，将显示文字广告')
 
 if __name__ == '__main__':
     main()
