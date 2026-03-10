@@ -1,10 +1,10 @@
-name: Build Cordova APK
+name: Cordova App Production
 
 on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: '构建类型 (debug / release)'
+        description: '构建类型 (debug/release)'
         required: true
         default: 'debug'
         type: choice
@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -30,28 +31,157 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Cordova
-        run: npm install -g cordova
+      - name: Install dependencies
+        run: |
+          npm install -g cordova
+          sudo apt-get update && sudo apt-get install -y imagemagick
 
       - name: Create Cordova project
         run: |
-          cordova create YingTuSpace com.yingtux.app "影图空间"
-          cd YingTuSpace
-          # 设置起始页为 ad.html
-          sed -i 's|<content src="index.html" />|<content src="ad.html" />|' config.xml
+          cordova create webapp com.yingtux.app YingTuSpace
+          cd webapp
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
+
+      - name: Generate icons and splash
+        run: |
+          cd webapp
+          mkdir -p res/icon/android res/screen/android www/img
+
+          # 图标
+          if [ -f "../logo.png" ]; then
+            convert ../logo.png -resize 48x48 res/icon/android/icon-mdpi.png
+            convert ../logo.png -resize 72x72 res/icon/android/icon-hdpi.png
+            convert ../logo.png -resize 96x96 res/icon/android/icon-xhdpi.png
+            convert ../logo.png -resize 144x144 res/icon/android/icon-xxhdpi.png
+            convert ../logo.png -resize 192x192 res/icon/android/icon-xxxhdpi.png
+          else
+            echo "缺少 logo.png"
+            exit 1
+          fi
+
+          # 启动画面
+          if [ -f "../img/splash.png" ]; then
+            for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              case $size in
+                mdpi) w=320;h=480 ;;
+                hdpi) w=480;h=800 ;;
+                xhdpi) w=720;h=1280 ;;
+                xxhdpi) w=960;h=1600 ;;
+                xxxhdpi) w=1280;h=1920 ;;
+              esac
+              convert ../img/splash.png -resize ${w}x${h}^ -gravity center -background white -extent ${w}x${h} res/screen/android/splash-${size}.png
+            done
+          else
+            echo "缺少 img/splash.png"
+            exit 1
+          fi
+
+      - name: Create ad.html and copy ad image
+        run: |
+          cd webapp/www
+          # 创建广告页（使用绝对路径引用图片）
+          cat > ad.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>开屏广告</title>
+    <script src="cordova.js"></script>
+    <style>
+        body { margin:0; padding:0; background:#000; color:#fff; text-align:center; font-family:sans-serif; }
+        .container { display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; }
+        .ad-image { max-width:90%; max-height:70vh; border:2px solid #fff; }
+        .countdown { font-size:24px; margin:20px; }
+        .skip-btn { padding:15px 40px; background:#007aff; color:white; border:none; border-radius:8px; font-size:18px; cursor:pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 使用绝对路径，确保在 Android 资产中可访问 -->
+        <img id="adImage" class="ad-image" src="/android_asset/www/img/ad.png" onerror="this.style.display='none'; document.getElementById('adText').style.display='block';" style="display:block;" />
+        <div id="adText" style="font-size:28px; font-weight:bold; display:none;">🎉 精彩广告位 🎉</div>
+        <p>5秒后自动进入网站</p>
+        <div class="countdown" id="countdown">5 秒后跳转</div>
+        <button class="skip-btn" onclick="skipAd()">立即跳过</button>
+    </div>
+    <script>
+        document.addEventListener('deviceready', function() {
+            if (navigator.splashscreen) navigator.splashscreen.hide();
+        }, false);
+        var seconds = 5;
+        var timer = setInterval(function() {
+            seconds--;
+            document.getElementById('countdown').innerText = seconds + ' 秒后跳转';
+            if (seconds <= 0) {
+                clearInterval(timer);
+                window.location.href = 'https://www.yingtux.cn';
+            }
+        }, 1000);
+        function skipAd() {
+            clearInterval(timer);
+            window.location.href = 'https://www.yingtux.cn';
+        }
+    </script>
+</body>
+</html>
+EOF
+
+          # 复制广告图片
+          if [ -f "../../img/ad.png" ]; then
+            cp ../../img/ad.png img/ad.png
+            echo "广告图片已复制"
+          else
+            echo "警告：img/ad.png 不存在，广告页将显示文字"
+          fi
+
+      - name: Modify root config.xml
+        run: |
+          cd webapp
+          # 备份原文件
+          cp config.xml config.xml.bak
+
+          # 设置起始页为 ad.html
+          sed -i 's|<content src="[^"]*" />|<content src="ad.html" />|' config.xml
+
+          # 在 <platform name="android"> 后插入图标和启动画面配置
+          sed -i '/<platform name="android">/a \        <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n        <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n        <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n        <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n        <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />\n        <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />\n        <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />\n        <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />\n        <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />\n        <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
+
+          # 添加启动画面首选项
+          sed -i '/<widget/ a \    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="5000" />\n    <preference name="AutoHideSplashScreen" value="false" />' config.xml
+
+          # 添加网络权限
+          sed -i '/<widget/ a \    <access origin="*" />\n    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
+
+          echo "根目录 config.xml 修改完成"
+
+      - name: Sync and verify platform config
+        run: |
+          cd webapp
+          # 运行 prepare 以将根 config.xml 合并到平台
+          cordova prepare android
+
+          # 再次直接修改平台 config.xml 以确保万无一失
+          PLATFORM_CONFIG="platforms/android/app/src/main/res/xml/config.xml"
+          if [ -f "$PLATFORM_CONFIG" ]; then
+            sed -i 's|<content src="[^"]*" />|<content src="ad.html" />|' "$PLATFORM_CONFIG"
+            echo "平台 config.xml 已强制修改"
+          else
+            echo "错误：找不到平台 config.xml"
+            exit 1
+          fi
 
       - name: Build APK
         id: build
         run: |
-          cd YingTuSpace
+          cd webapp
           BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
           cordova build android --$BUILD_TYPE --verbose
           if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH="YingTuSpace/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
           else
-            APK_PATH="YingTuSpace/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
           fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
