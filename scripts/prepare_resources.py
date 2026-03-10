@@ -55,7 +55,7 @@ def main():
     for density, (w, h) in splash_sizes.items():
         create_splash(splash_src, f'res/screen/android/splash-{density}.png', w, h)
 
-    # 修改 config.xml（仅添加图标和启动画面配置，不修改 content）
+    # 修改 config.xml（仅添加图标和启动画面配置）
     config_path = 'config.xml'
     shutil.copy(config_path, config_path + '.bak')
     with open(config_path, 'r') as f:
@@ -93,7 +93,7 @@ def main():
     pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
     content = content[:widget_end] + pref_text + content[widget_end:]
 
-    # 添加 allow-navigation
+    # 添加 allow-navigation（workflow 已加，这里可保留）
     allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
     platform_index = content.find('<platform')
     content = content[:platform_index] + allow_nav + content[platform_index:]
@@ -112,7 +112,7 @@ def main():
 
     with open(config_path, 'w') as f:
         f.write(content)
-    print('config.xml 更新完成（图标、启动画面、首选项、资源文件）')
+    print('config.xml 更新完成')
 
 if __name__ == '__main__':
     main()
