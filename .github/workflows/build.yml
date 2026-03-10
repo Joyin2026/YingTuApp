@@ -48,19 +48,26 @@ jobs:
         run: |
           sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
 
+      - name: Fix Kotlin version conflict in build.gradle
+        run: |
+          # 在 android/app/build.gradle 中添加 resolutionStrategy 强制使用统一版本
+          echo "" >> android/app/build.gradle
+          echo "configurations.all {" >> android/app/build.gradle
+          echo "    resolutionStrategy {" >> android/app/build.gradle
+          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.0'" >> android/app/build.gradle
+          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0'" >> android/app/build.gradle
+          echo "    }" >> android/app/build.gradle
+          echo "}" >> android/app/build.gradle
+          echo "已添加 Kotlin 版本强制配置"
+
       - name: Sync Capacitor
         run: npx cap copy
 
-      - name: Clean Gradle and Build APK
+      - name: Build APK
         run: |
           cd android
-          # 停止任何可能使用旧 JDK 的 Gradle 守护进程
-          ./gradlew --stop
-          # 强制使用 JAVA_HOME 环境变量
           export JAVA_HOME=$JAVA_HOME_21_X64
-          echo "Using JAVA_HOME: $JAVA_HOME"
-          # 清理并构建
-          ./gradlew clean assembleDebug --no-daemon
+          ./gradlew clean assembleDebug --no-daemon --refresh-dependencies
         env:
           JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
 
