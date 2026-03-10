@@ -1,71 +1,71 @@
-name: Package Website into Android APK
+name: Minimal Capacitor APK
 
-# 触发条件：当你推送到 main 分支时自动构建
 on:
-  push:
-    branches: [ "main" ]
-  # 你也可以手动触发工作流
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
 
     steps:
-      # 1. 检出你的仓库代码（虽然这次我们主要用配置，但步骤需要）
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2. 设置 Java 环境 (Android 构建必需)
-      - name: Set up JDK 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
-      # 3. 设置 Node.js 环境 (Cordova 必需)
+      - name: Verify Java version
+        run: java -version
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # 4. 安装 Cordova 并创建应用壳
-      - name: Create Cordova project
-        run: |
-          npm install -g cordova
-          # 创建一个临时的 Cordova 项目
-          cordova create webapp com.yingtux.app 影图空间
-          cd webapp
-          
-          # 配置项目，使其加载你的网站，而不是本地文件
-          # 这一步是关键：修改 config.xml，设置内容来源为你提供的网址
-          sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
-          
-          # 添加 Android 平台
-          cordova platform add android
+      - name: Install Capacitor CLI globally
+        run: npm install -g @capacitor/cli
 
-      # 5. 可选：自定义应用图标和名称 (需要你将图标文件放在仓库的指定路径)
-      # 如果你希望 App 有自定义图标，可以在仓库中创建 icons/logo.png (至少192x192)
-      # 并取消下面几行的注释
-      - name: Customize App Icon and Name
-        run: |
-          cd webapp
-      #     # 复制图标到 Cordova 的默认位置 (需要根据你的图标调整)
-          mkdir -p platforms/android/app/src/main/res/mipmap-xxxhdpi/
-          cp ../icons/logo.png platforms/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          # 更多尺寸图标的复制操作...
-          echo "自定义图标步骤（简化版），实际使用需要更详细的配置"
+      - name: Initialize npm project
+        run: npm init -y
 
-      # 6. 构建未签名的调试版 APK
-      - name: Build APK
+      - name: Create minimal web assets
         run: |
-          cd webapp
-          cordova build android --verbose
+          mkdir -p www
+          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading...</title></head><body>Redirecting...</body></html>' > www/index.html
 
-      # 7. 上传生成的 APK 文件作为工作流产物
+      - name: Install Capacitor Android locally
+        run: npm install @capacitor/android
+
+      - name: Initialize Capacitor project
+        run: npx cap init YingTuApp com.yingtux.app --web-dir www
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Configure app to load your website directly
+        run: |
+          sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
+
+      - name: Sync Capacitor
+        run: npx cap copy
+
+      - name: Clean Gradle and Build APK
+        run: |
+          cd android
+          # 停止任何可能使用旧 JDK 的 Gradle 守护进程
+          ./gradlew --stop
+          # 强制使用 JAVA_HOME 环境变量
+          export JAVA_HOME=$JAVA_HOME_21_X64
+          echo "Using JAVA_HOME: $JAVA_HOME"
+          # 清理并构建
+          ./gradlew clean assembleDebug --no-daemon
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-website-app
-          # Cordova 生成 APK 的默认路径
-          path: webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
+          name: yingtu-app
+          path: android/app/build/outputs/apk/debug/app-debug.apk
