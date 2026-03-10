@@ -1,98 +1,22 @@
-name: Build Cordova APK
+name: Build Capacitor App
 
 on:
   workflow_dispatch:
-    inputs:
-      build_type:
-        description: '构建类型 (debug / release)'
-        required: true
-        default: 'debug'
-        type: choice
-        options:
-          - debug
-          - release
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
+      - run: mkdir -p www && echo '<h1>Hello World</h1>' > www/index.html
+      - run: npx cap init com.example.app MyApp --web-dir www
+      - run: npx cap add android
+      - run: cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
         with:
-          python-version: '3.10'
-
-      - name: Install dependencies
-        run: |
-          pip install pillow
-          npm install -g cordova
-
-      - name: Create Cordova project
-        run: |
-          cordova create webapp com.yingtux.app YingTuSpace
-          cd webapp
-          # 设置起始页为你的网站（直接加载，跳过广告页）
-          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
-          # 添加访问权限
-          sed -i '/<allow-navigation/d' config.xml
-          sed -i '/<access /d' config.xml
-          sed -i 's|<widget|<widget\n    <access origin="*" />\n    <allow-navigation href="https://www.yingtux.cn/*" />|' config.xml
-          cordova platform add android
-          cordova plugin add cordova-plugin-splashscreen
-
-      - name: Prepare resources with Python
-        run: python scripts/prepare_resources.py
-
-      - name: Force correct content src in platform config
-        run: |
-          cd webapp
-          CONFIG_FILE="platforms/android/app/src/main/res/xml/config.xml"
-          if [ -f "$CONFIG_FILE" ]; then
-            sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' "$CONFIG_FILE"
-          else
-            echo "错误：找不到 $CONFIG_FILE"
-            exit 1
-          fi
-
-      - name: Ensure internet permission
-        run: |
-          cd webapp
-          MANIFEST="platforms/android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            if ! grep -q '<uses-permission android:name="android.permission.INTERNET"' "$MANIFEST"; then
-              sed -i '/<application/ i \    <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
-            fi
-          fi
-
-      - name: Build APK
-        id: build
-        run: |
-          cd webapp
-          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
-          cordova build android --$BUILD_TYPE --verbose
-          if [ "$BUILD_TYPE" = "debug" ]; then
-            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
-          else
-            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
-          fi
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
-          path: ${{ steps.build.outputs.apk_path }}
+          name: app-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
