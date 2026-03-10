@@ -13,7 +13,7 @@ jobs:
           node-version: '20'
       - run: npm install -g @capacitor/cli @capacitor/core @capacitor/android
       - run: mkdir -p www && echo '<h1>Hello World</h1>' > www/index.html
-      - run: npx cap init com.example.app MyApp --web-dir www
+      - run: npx cap init "影图空间" "com.yingtux.app" --web-dir www
       - run: npx cap add android
       - run: cd android && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
