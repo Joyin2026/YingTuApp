@@ -1,78 +1,110 @@
-name: Minimal Capacitor APK
+name: Package Website into Android APK
 
 on:
+  # 推送到 main 分支时自动构建（默认 debug 版）
+  push:
+    branches: [ "main" ]
+  # 手动触发时允许选择构建类型
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: '构建类型 (debug / release)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - debug
+          - release
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # 1. 检出仓库代码（主要为了获取 logo.png）
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      # 2. 设置 Java 环境
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '17'
           distribution: 'temurin'
 
-      - name: Verify Java version
-        run: java -version
-
+      # 3. 设置 Node.js 环境
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Capacitor CLI globally
-        run: npm install -g @capacitor/cli
-
-      - name: Initialize npm project
-        run: npm init -y
-
-      - name: Create minimal web assets
+      # 4. 安装 Cordova 并创建应用壳，配置加载你的网站
+      - name: Create Cordova project
         run: |
-          mkdir -p www
-          echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Loading...</title></head><body>Redirecting...</body></html>' > www/index.html
+          npm install -g cordova
+          cordova create webapp com.yingtux.app 影图空间
+          cd webapp
+          # 修改启动页为你的网址
+          sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
+          cordova platform add android
 
-      - name: Install Capacitor Android locally
-        run: npm install @capacitor/android
-
-      - name: Initialize Capacitor project
-        run: npx cap init YingTuApp com.yingtux.app --web-dir www
-
-      - name: Add Android platform
-        run: npx cap add android
-
-      - name: Configure app to load your website directly
+      # 5. 生成并复制多分辨率图标（基于根目录下的 logo.png）
+      - name: Generate and copy icons for all densities
         run: |
-          sed -i 's|"server": {}|"server": { "url": "https://www.yingtux.cn", "cleartext": true }|' capacitor.config.json
+          cd webapp
+          # 安装 ImageMagick（用于图片缩放）
+          sudo apt-get update && sudo apt-get install -y imagemagick
 
-      - name: Fix Kotlin version conflict in build.gradle
-        run: |
-          # 在 android/app/build.gradle 中添加 resolutionStrategy 强制使用统一版本
-          echo "" >> android/app/build.gradle
-          echo "configurations.all {" >> android/app/build.gradle
-          echo "    resolutionStrategy {" >> android/app/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.0'" >> android/app/build.gradle
-          echo "        force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0'" >> android/app/build.gradle
-          echo "    }" >> android/app/build.gradle
-          echo "}" >> android/app/build.gradle
-          echo "已添加 Kotlin 版本强制配置"
+          # 源图标路径（相对于 webapp 目录，位于仓库根目录）
+          ICON_SRC="../logo.png"
 
-      - name: Sync Capacitor
-        run: npx cap copy
+          # 检查图标文件是否存在
+          if [ ! -f "$ICON_SRC" ]; then
+            echo "错误：未找到根目录下的 logo.png 文件！"
+            exit 1
+          fi
 
+          # 循环生成各密度图标
+          for size in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            case $size in
+              mdpi)    res=48 ;;
+              hdpi)    res=72 ;;
+              xhdpi)   res=96 ;;
+              xxhdpi)  res=144 ;;
+              xxxhdpi) res=192 ;;
+            esac
+            mkdir -p platforms/android/app/src/main/res/mipmap-$size/
+            convert $ICON_SRC -resize ${res}x${res} platforms/android/app/src/main/res/mipmap-$size/ic_launcher.png
+          done
+          echo "所有密度图标已生成"
+
+      # 6. 根据输入类型构建 APK（push 触发时默认 debug）
       - name: Build APK
+        id: build
         run: |
-          cd android
-          export JAVA_HOME=$JAVA_HOME_21_X64
-          ./gradlew clean assembleDebug --no-daemon --refresh-dependencies
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_21_X64 }}
+          cd webapp
+          # 确定构建类型：如果手动触发有输入则使用输入值，否则默认为 debug
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ -z "$BUILD_TYPE" ]; then
+            BUILD_TYPE="debug"
+          fi
+          echo "构建类型：$BUILD_TYPE"
+          
+          # 执行构建（release 构建需要签名，此处仅作演示；若需真正 release 请配置签名）
+          cordova build android --$BUILD_TYPE --verbose
+          
+          # 设置输出路径供后续步骤使用
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            # 注意：未签名的 release apk 名称为 app-release-unsigned.apk，且构建可能因无签名而失败
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
+      # 7. 上传生成的 APK 文件
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: yingtu-website-app-${{ github.event.inputs.build_type || 'debug' }}
+          path: ${{ steps.build.outputs.apk_path }}
