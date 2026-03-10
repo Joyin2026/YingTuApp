@@ -45,23 +45,29 @@ jobs:
         run: |
           cordova create webapp com.yingtux.app 影图空间
           cd webapp
-          # 直接设置起始页为你的网站
+          # 初始设置起始页为网站，但之后可能被覆盖
           sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
-          echo "初始 content 行:"
-          grep '<content' config.xml || true
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
 
       - name: Prepare resources with Python
         run: python scripts/prepare_resources.py
 
-      # 再次强制确保 content 正确
-      - name: Final content check
+      # 关键步骤：直接修改平台下的最终 config.xml
+      - name: Force correct content src in platform config
         run: |
           cd webapp
-          sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' config.xml
-          echo "最终 content 行:"
-          grep '<content' config.xml
+          CONFIG_FILE="platforms/android/app/src/main/res/xml/config.xml"
+          if [ -f "$CONFIG_FILE" ]; then
+            echo "修改前 content 行:"
+            grep '<content' "$CONFIG_FILE" || true
+            sed -i 's|<content src="[^"]*" />|<content src="https://www.yingtux.cn" />|' "$CONFIG_FILE"
+            echo "修改后 content 行:"
+            grep '<content' "$CONFIG_FILE"
+          else
+            echo "错误：找不到 $CONFIG_FILE"
+            exit 1
+          fi
 
       - name: Build APK
         id: build
