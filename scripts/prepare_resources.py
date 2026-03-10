@@ -28,13 +28,11 @@ def create_splash(src, dst, width, height, bg_color=(255,255,255)):
     canvas.save(dst)
 
 def main():
-    # 切换到 webapp 目录
     if not os.path.exists('webapp'):
         print('错误：未找到 webapp 目录，请先运行 cordova create')
         sys.exit(1)
     os.chdir('webapp')
 
-    # 创建资源目录
     os.makedirs('res/icon/android', exist_ok=True)
     os.makedirs('res/screen/android', exist_ok=True)
 
@@ -72,7 +70,6 @@ def main():
     # 确保有 android platform 标签
     platform_tag = '<platform name="android">'
     if platform_tag not in content:
-        # 在 </widget> 前插入
         closing_widget = '</widget>'
         if closing_widget not in content:
             print('错误：未找到 </widget>')
@@ -84,30 +81,29 @@ def main():
         with open(config_path, 'r') as f:
             content = f.read()
 
-    # 插入图标和启动画面配置（避免重复插入，先检查是否已有）
+    # 插入图标和启动画面配置（避免重复）
     if '<icon density=' not in content:
         icon_lines = [f'        <icon density="{d}" src="res/icon/android/icon-{d}.png" />' for d in icon_sizes]
         splash_lines = [f'        <splash density="{d}" src="res/screen/android/splash-{d}.png" />' for d in splash_sizes]
         insert_text = '\n' + '\n'.join(icon_lines + splash_lines)
         new_content = content.replace(platform_tag, platform_tag + insert_text)
-        with open(config_path, 'w') as f:
-            f.write(new_content)
-        print('config.xml 已更新（插入图标/启动画面）')
+        print('插入图标/启动画面配置')
     else:
-        print('config.xml 已有图标/启动画面配置，跳过插入')
+        new_content = content
+        print('图标/启动画面配置已存在，跳过')
 
-    # 添加启动画面首选项（延迟显示）
+    # 添加启动画面首选项（延迟显示，并允许自动隐藏）
     preferences = [
         '<preference name="SplashScreen" value="screen" />',
         '<preference name="SplashScreenDelay" value="5000" />',
-        '<preference name="AutoHideSplashScreen" value="false" />',
+        '<preference name="AutoHideSplashScreen" value="true" />',  # 改为 true，让插件自动隐藏
         '<preference name="FadeSplashScreen" value="false" />',
         '<preference name="ShowSplashScreenSpinner" value="false" />'
     ]
     # 在 <widget> 内插入
-    widget_end = content.find('>', content.find('<widget')) + 1
+    widget_end = new_content.find('>', new_content.find('<widget')) + 1
     pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
-    new_content = content[:widget_end] + pref_text + content[widget_end:]
+    new_content = new_content[:widget_end] + pref_text + new_content[widget_end:]
 
     # 添加 allow-navigation
     allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
@@ -118,7 +114,7 @@ def main():
         f.write(new_content)
     print('已添加启动画面首选项和 allow-navigation')
 
-    # 创建广告页面（包含清晰提示）
+    # 创建广告页面（包含 cordova.js 和启动画面隐藏代码）
     os.makedirs('www/img', exist_ok=True)
     with open('www/ad.html', 'w') as f:
         f.write('''<!DOCTYPE html>
@@ -128,6 +124,7 @@ def main():
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <title>开屏广告</title>
     <meta http-equiv="refresh" content="5;url=https://www.yingtux.cn">
+    <script src="cordova.js"></script>
     <style>
         body { margin:0; padding:20px; background:#f0f0f0; text-align:center; font-family:sans-serif; }
         .container { min-height:80vh; display:flex; flex-direction:column; justify-content:center; }
@@ -146,6 +143,16 @@ def main():
         <button class="skip-btn" onclick="skipAd()">立即跳过</button>
     </div>
     <script>
+        // 等待 Cordova 设备就绪
+        document.addEventListener('deviceready', function() {
+            // 隐藏启动画面（确保它消失）
+            if (navigator.splashscreen) {
+                navigator.splashscreen.hide();
+            }
+            console.log('启动画面已隐藏');
+        }, false);
+
+        // 广告图片处理
         var img = new Image();
         img.onload = function() {
             document.getElementById('adImage').src = 'img/ad.png';
@@ -161,6 +168,7 @@ def main():
             seconds--;
             if (seconds <= 0) {
                 clearInterval(timer);
+                window.location.href = 'https://www.yingtux.cn';
             } else {
                 countdownEl.innerText = seconds + ' 秒后跳转';
             }
@@ -173,7 +181,7 @@ def main():
     </script>
 </body>
 </html>''')
-    print('广告页面已生成')
+    print('广告页面已生成（含启动画面隐藏代码）')
 
     # 复制广告图片
     if os.path.exists('../../ad.png'):
