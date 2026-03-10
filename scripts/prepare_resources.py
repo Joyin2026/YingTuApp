@@ -5,12 +5,20 @@ import shutil
 from PIL import Image
 
 def resize_icon(src, dst, size):
-    img = Image.open(src)
+    try:
+        img = Image.open(src)
+    except Exception as e:
+        print(f"错误：无法打开图标文件 {src}，请确保它是有效的 PNG 格式。详情：{e}")
+        sys.exit(1)
     img = img.resize((size, size), Image.Resampling.LANCZOS)
     img.save(dst)
 
 def create_splash(src, dst, width, height, bg_color=(255,255,255)):
-    img = Image.open(src)
+    try:
+        img = Image.open(src)
+    except Exception as e:
+        print(f"错误：无法打开启动画面文件 {src}，请确保它是有效的 PNG 格式。详情：{e}")
+        sys.exit(1)
     canvas = Image.new('RGB', (width, height), bg_color)
     img_ratio = img.width / img.height
     canvas_ratio = width / height
@@ -33,7 +41,6 @@ def main():
         sys.exit(1)
     os.chdir('webapp')
 
-    # 创建资源目录
     os.makedirs('res/icon/android', exist_ok=True)
     os.makedirs('res/screen/android', exist_ok=True)
 
@@ -42,6 +49,7 @@ def main():
     if not os.path.exists(icon_src):
         print('错误：缺少根目录下的 logo.png')
         sys.exit(1)
+    print(f"处理图标: {icon_src}")
     icon_sizes = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
     for density, size in icon_sizes.items():
         dst = f'res/icon/android/icon-{density}.png'
@@ -53,6 +61,7 @@ def main():
     if not os.path.exists(splash_src):
         print('错误：缺少 img/splash.png')
         sys.exit(1)
+    print(f"处理启动画面: {splash_src}")
     splash_sizes = {
         'mdpi': (320, 480), 'hdpi': (480, 800), 'xhdpi': (720, 1280),
         'xxhdpi': (960, 1600), 'xxxhdpi': (1280, 1920)
@@ -62,13 +71,16 @@ def main():
         create_splash(splash_src, dst, w, h)
         print(f'生成启动画面: {dst}')
 
-    # 修改 config.xml
+    # 修改 config.xml（此处省略，与之前相同，但确保缩进正确）
+    # ...（为节省篇幅，省略 config.xml 修改部分，保持与之前相同）
+    # 请确保 config.xml 部分完整保留，下面给出简写示意，实际需完整复制之前的内容
+
+    # 以下为 config.xml 修改的完整代码（与之前最后一次提供的完全相同）
     config_path = 'config.xml'
     shutil.copy(config_path, config_path + '.bak')
     with open(config_path, 'r') as f:
         content = f.read()
 
-    # 确保有 android platform 标签
     platform_tag = '<platform name="android">'
     if platform_tag not in content:
         closing_widget = '</widget>'
@@ -82,7 +94,6 @@ def main():
         with open(config_path, 'r') as f:
             content = f.read()
 
-    # 插入图标配置（确保不重复）
     if '<icon density=' not in content:
         icon_lines = [f'        <icon density="{d}" src="res/icon/android/icon-{d}.png" />' for d in icon_sizes]
         new_content = content.replace(platform_tag, platform_tag + '\n' + '\n'.join(icon_lines))
@@ -94,7 +105,6 @@ def main():
     else:
         print('图标配置已存在，跳过')
 
-    # 插入启动画面配置（确保不重复）
     if '<splash density=' not in content:
         splash_lines = [f'        <splash density="{d}" src="res/screen/android/splash-{d}.png" />' for d in splash_sizes]
         new_content = content.replace(platform_tag, platform_tag + '\n' + '\n'.join(splash_lines))
@@ -106,7 +116,6 @@ def main():
     else:
         print('启动画面配置已存在，跳过')
 
-    # 添加启动画面首选项（关键设置）
     preferences = [
         '<preference name="SplashScreen" value="screen" />',
         '<preference name="SplashScreenDelay" value="5000" />',
@@ -114,17 +123,14 @@ def main():
         '<preference name="FadeSplashScreen" value="false" />',
         '<preference name="ShowSplashScreenSpinner" value="false" />'
     ]
-    # 在 <widget> 后插入
     widget_end = content.find('>', content.find('<widget')) + 1
     pref_text = '\n    ' + '\n    '.join(preferences) + '\n'
     content = content[:widget_end] + pref_text + content[widget_end:]
 
-    # 添加 allow-navigation
     allow_nav = '\n    <allow-navigation href="https://www.yingtux.cn/*" />\n'
     platform_index = content.find('<platform')
     content = content[:platform_index] + allow_nav + content[platform_index:]
 
-    # 添加资源文件复制指令（确保启动画面图片被正确打包）
     resource_files = [
         '<resource-file src="res/screen/android/splash-mdpi.png" target="res/drawable-port-mdpi/splash.png" />',
         '<resource-file src="res/screen/android/splash-hdpi.png" target="res/drawable-port-hdpi/splash.png" />',
@@ -140,7 +146,7 @@ def main():
         f.write(content)
     print('已添加启动画面首选项、allow-navigation 和资源文件复制指令')
 
-    # 创建广告页面（必选，包含广告图和 Cordova 隐藏启动画面代码）
+    # 创建广告页面
     os.makedirs('www/img', exist_ok=True)
     with open('www/ad.html', 'w') as f:
         f.write('''<!DOCTYPE html>
@@ -196,9 +202,10 @@ def main():
     print('广告页面已生成')
 
     # 复制广告图片（从 img 目录复制到 www/img/）
-    if os.path.exists('../../img/ad.png'):
-        shutil.copy('../../img/ad.png', 'www/img/ad.png')
-        print('广告图片已从 ../img/ad.png 复制到 www/img/ad.png')
+    ad_src = '../../img/ad.png'
+    if os.path.exists(ad_src):
+        shutil.copy(ad_src, 'www/img/ad.png')
+        print(f'广告图片已从 {ad_src} 复制到 www/img/ad.png')
     else:
         print('错误：缺少 img/ad.png')
         sys.exit(1)
