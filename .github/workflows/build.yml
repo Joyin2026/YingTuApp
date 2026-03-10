@@ -1,4 +1,4 @@
-name: Build APK with Buildozer
+name: Build Cordova APK
 
 on:
   workflow_dispatch:
@@ -20,36 +20,53 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install system dependencies
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git zip unzip \
-            openjdk-17-jdk \
-            python3-pip \
-            autoconf libtool pkg-config \
-            zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 \
-            cmake libffi-dev libssl-dev \
-            libtool-bin autoconf-archive
-          pip install --upgrade pip
+          pip install pillow
+          npm install -g cordova
 
-      - name: Install Buildozer and Cython
+      - name: Create Cordova project
         run: |
-          pip install cython buildozer
+          cordova create webapp com.yingtux.app 影图空间
+          cd webapp
+          sed -i 's|<content src="index.html" />|<content src="ad.html" />|' config.xml
+          cordova platform add android
+          cordova plugin add cordova-plugin-splashscreen
 
-      - name: Build with Buildozer
+      - name: Prepare resources with Python
+        run: python scripts/prepare_resources.py
+
+      - name: Build APK
+        id: build
         run: |
-          yes | buildozer android debug
-        env:
-          BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
+          cd webapp
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          cordova build android --$BUILD_TYPE --verbose
+          if [ "$BUILD_TYPE" = "debug" ]; then
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk"
+          else
+            APK_PATH="webapp/platforms/android/app/build/outputs/apk/release/app-release-unsigned.apk"
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: yingtu-app-${{ github.event.inputs.build_type || 'debug' }}
-          path: bin/*.apk
+          path: ${{ steps.build.outputs.apk_path }}
