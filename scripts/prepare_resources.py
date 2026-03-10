@@ -37,10 +37,10 @@ def main():
     os.makedirs('res/icon/android', exist_ok=True)
     os.makedirs('res/screen/android', exist_ok=True)
 
-    # 生成图标（使用 logo.png）
+    # 生成图标（使用根目录下的 logo.png）
     icon_src = '../logo.png'
     if not os.path.exists(icon_src):
-        print('错误：缺少 logo.png')
+        print('错误：缺少根目录下的 logo.png')
         sys.exit(1)
     icon_sizes = {'mdpi': 48, 'hdpi': 72, 'xhdpi': 96, 'xxhdpi': 144, 'xxxhdpi': 192}
     for density, size in icon_sizes.items():
@@ -48,10 +48,10 @@ def main():
         resize_icon(icon_src, dst, size)
         print(f'生成图标: {dst}')
 
-    # 生成启动画面（使用 splash.png）
-    splash_src = '../splash.png'
+    # 生成启动画面（使用 img 目录下的 splash.png）
+    splash_src = '../img/splash.png'
     if not os.path.exists(splash_src):
-        print('错误：缺少 splash.png')
+        print('错误：缺少 img/splash.png')
         sys.exit(1)
     splash_sizes = {
         'mdpi': (320, 480), 'hdpi': (480, 800), 'xhdpi': (720, 1280),
@@ -85,7 +85,6 @@ def main():
     # 插入图标配置（确保不重复）
     if '<icon density=' not in content:
         icon_lines = [f'        <icon density="{d}" src="res/icon/android/icon-{d}.png" />' for d in icon_sizes]
-        # 在 platform 标签后插入
         new_content = content.replace(platform_tag, platform_tag + '\n' + '\n'.join(icon_lines))
         with open(config_path, 'w') as f:
             f.write(new_content)
@@ -111,7 +110,7 @@ def main():
     preferences = [
         '<preference name="SplashScreen" value="screen" />',
         '<preference name="SplashScreenDelay" value="5000" />',
-        '<preference name="AutoHideSplashScreen" value="false" />',  # 由我们手动隐藏
+        '<preference name="AutoHideSplashScreen" value="false" />',
         '<preference name="FadeSplashScreen" value="false" />',
         '<preference name="ShowSplashScreenSpinner" value="false" />'
     ]
@@ -125,7 +124,7 @@ def main():
     platform_index = content.find('<platform')
     content = content[:platform_index] + allow_nav + content[platform_index:]
 
-    # 添加资源文件复制指令（确保图片被正确打包）
+    # 添加资源文件复制指令（确保启动画面图片被正确打包）
     resource_files = [
         '<resource-file src="res/screen/android/splash-mdpi.png" target="res/drawable-port-mdpi/splash.png" />',
         '<resource-file src="res/screen/android/splash-hdpi.png" target="res/drawable-port-hdpi/splash.png" />',
@@ -134,7 +133,6 @@ def main():
         '<resource-file src="res/screen/android/splash-xxxhdpi.png" target="res/drawable-port-xxxhdpi/splash.png" />'
     ]
     resource_text = '\n'.join(resource_files) + '\n'
-    # 插入在 platform 标签内
     platform_end = content.find('</platform>', content.find(platform_tag))
     content = content[:platform_end] + resource_text + content[platform_end:]
 
@@ -170,7 +168,6 @@ def main():
     </div>
     <script>
         document.addEventListener('deviceready', function() {
-            // 隐藏启动画面
             if (navigator.splashscreen) {
                 navigator.splashscreen.hide();
                 console.log('启动画面已隐藏');
@@ -198,13 +195,13 @@ def main():
 </html>''')
     print('广告页面已生成')
 
-    # 复制广告图片（必须存在）
-    if os.path.exists('../../ad.png'):
-        shutil.copy('../../ad.png', 'www/img/ad.png')
-        print('广告图片已复制到 www/img/ad.png')
+    # 复制广告图片（从 img 目录复制到 www/img/）
+    if os.path.exists('../../img/ad.png'):
+        shutil.copy('../../img/ad.png', 'www/img/ad.png')
+        print('广告图片已从 ../img/ad.png 复制到 www/img/ad.png')
     else:
-        print('错误：缺少 ad.png')
-        sys.exit(1)  # 广告图必选，缺失则终止构建
+        print('错误：缺少 img/ad.png')
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
