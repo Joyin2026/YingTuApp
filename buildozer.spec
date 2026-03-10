@@ -12,7 +12,7 @@ version = 0.1
 # version.filename = %(source.dir)s/main.py
 
 # 依赖库 - 使用兼容 Python 3 的版本
-requirements = python3,kivy==2.3.0,pyjnius==1.6.0,android
+requirements = python3,kivy==2.2.1,pyjnius==1.4.0
 
 # 权限
 android.permissions = INTERNET,ACCESS_NETWORK_STATE
