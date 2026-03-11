@@ -1,8 +1,6 @@
-name: Package Website into Android APK (with Icon, no Splash)
+name: Package Website into Android APK (with Icon & Splash)
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -10,8 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -24,17 +21,20 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install system dependencies (ImageMagick)
-        run: sudo apt-get update && sudo apt-get install -y imagemagick
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+          npm install -g cordova
 
       - name: Create Cordova project
         run: |
-          npm install -g cordova
           cordova create webapp com.yingtux.app 影图
           cd webapp
           sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
           sed -i '/<widget/ a \    <access origin="*" />' config.xml
           cordova platform add android
+          cordova plugin add cordova-plugin-splashscreen
 
       - name: Generate icons
         run: |
@@ -46,24 +46,50 @@ jobs:
             convert ../logo.png -resize 96x96 res/icon/android/icon-xhdpi.png
             convert ../logo.png -resize 144x144 res/icon/android/icon-xxhdpi.png
             convert ../logo.png -resize 192x192 res/icon/android/icon-xxxhdpi.png
-            echo "图标生成成功"
-          else
-            echo "警告：根目录缺少 logo.png，跳过图标生成"
           fi
 
-      - name: Insert icon config into config.xml
+      - name: Generate splash screens (use screen naming)
+        run: |
+          cd webapp
+          mkdir -p res/screen/android
+          if [ -f "../img/splash.png" ]; then
+            convert ../img/splash.png -resize 320x480^ -gravity center -background white -extent 320x480 res/screen/android/screen-mdpi.png
+            convert ../img/splash.png -resize 480x800^ -gravity center -background white -extent 480x800 res/screen/android/screen-hdpi.png
+            convert ../img/splash.png -resize 720x1280^ -gravity center -background white -extent 720x1280 res/screen/android/screen-xhdpi.png
+            convert ../img/splash.png -resize 960x1600^ -gravity center -background white -extent 960x1600 res/screen/android/screen-xxhdpi.png
+            convert ../img/splash.png -resize 1280x1920^ -gravity center -background white -extent 1280x1920 res/screen/android/screen-xxxhdpi.png
+          fi
+
+      - name: Insert icon and splash config into config.xml
         run: |
           cd webapp
           cp config.xml config.xml.bak
-          sed -i '/<widget/ a\    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
+          # 插入图标和启动画面配置，注意 splash 的 src 引用的是 screen-xxx.png
+          sed -i '/<widget/ a\    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />\n    <splash density="mdpi" src="res/screen/android/screen-mdpi.png" />\n    <splash density="hdpi" src="res/screen/android/screen-hdpi.png" />\n    <splash density="xhdpi" src="res/screen/android/screen-xhdpi.png" />\n    <splash density="xxhdpi" src="res/screen/android/screen-xxhdpi.png" />\n    <splash density="xxxhdpi" src="res/screen/android/screen-xxxhdpi.png" />' config.xml
+
+      - name: Add splash preferences and allow-navigation
+        run: |
+          cd webapp
+          # 首选项 SplashScreen 值设为 screen，与图片文件主体名匹配
+          sed -i '/<widget/ a\    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="3000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
+
+      - name: Copy splash images to native platform directories (rename to screen.png)
+        run: |
+          cd webapp
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            if [ -f "res/screen/android/screen-${density}.png" ]; then
+              mkdir -p platforms/android/app/src/main/res/drawable-${density}
+              cp res/screen/android/screen-${density}.png platforms/android/app/src/main/res/drawable-${density}/screen.png
+            fi
+          done
 
       - name: Build APK
         run: |
           cd webapp
-          cordova build android --verbose
+          cordova build android
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-website-app-with-icon
+          name: yingtu-app-with-splash
           path: webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
