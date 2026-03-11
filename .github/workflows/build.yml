@@ -45,7 +45,7 @@ jobs:
           cd webapp
           mkdir -p res/icon/android res/screen/android
 
-          # 图标生成（从根目录 logo.png）
+          # 图标生成
           if [ -f "../logo.png" ]; then
             convert ../logo.png -resize 48x48 res/icon/android/icon-mdpi.png
             convert ../logo.png -resize 72x72 res/icon/android/icon-hdpi.png
@@ -57,7 +57,7 @@ jobs:
             echo "警告：根目录缺少 logo.png，跳过图标生成"
           fi
 
-          # 启动画面生成（从 img/splash.png）
+          # 启动画面生成
           if [ -f "../img/splash.png" ]; then
             convert ../img/splash.png -resize 320x480^ -gravity center -background white -extent 320x480 res/screen/android/splash-mdpi.png
             convert ../img/splash.png -resize 480x800^ -gravity center -background white -extent 480x800 res/screen/android/splash-hdpi.png
@@ -69,28 +69,36 @@ jobs:
             echo "警告：img/splash.png 不存在，跳过启动画面生成"
           fi
 
+      - name: Verify generated splash files
+        run: |
+          cd webapp
+          echo "=== 检查生成的启动画面文件 ==="
+          ls -la res/screen/android/ || echo "目录为空"
+          echo "=== 检查生成的图标文件 ==="
+          ls -la res/icon/android/ || echo "目录为空"
+
       - name: Modify config.xml (add icon, splash, preferences)
         run: |
           cd webapp
           cp config.xml config.xml.bak
 
-          # 在 <widget> 标签后插入图标和启动画面配置
+          # 插入图标和启动画面配置
           sed -i '/<widget/ a \    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />\n    <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />\n    <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />\n    <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />\n    <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />\n    <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
 
-          # 添加启动画面首选项（延迟3秒，自动隐藏）
-          sed -i '/<widget/ a \    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="3000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
+          # 添加启动画面首选项（关键：SplashScreen 值改为 splash，匹配图片文件名）
+          sed -i '/<widget/ a \    <preference name="SplashScreen" value="splash" />\n    <preference name="SplashScreenDelay" value="3000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
 
           # 添加 allow-navigation
           sed -i '/<widget/ a \    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
 
           echo "config.xml 更新完成"
-          # 输出 config.xml 的前20行以便检查
-          head -20 config.xml
+          echo "=== config.xml 前30行 ==="
+          head -30 config.xml
 
-      - name: Copy resources to platform (ensuring they are included)
+      - name: Copy resources to platform
         run: |
           cd webapp
-          # 复制生成的启动画面到平台目录（确保插件能找到）
+          # 复制启动画面到平台目录（同时复制一份为 screen.png 以防万一，但主要用 splash.png）
           mkdir -p platforms/android/app/src/main/res/drawable-port-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}
           if [ -f "res/screen/android/splash-mdpi.png" ]; then
             cp res/screen/android/splash-mdpi.png platforms/android/app/src/main/res/drawable-port-mdpi/splash.png
@@ -98,7 +106,9 @@ jobs:
             cp res/screen/android/splash-xhdpi.png platforms/android/app/src/main/res/drawable-port-xhdpi/splash.png
             cp res/screen/android/splash-xxhdpi.png platforms/android/app/src/main/res/drawable-port-xxhdpi/splash.png
             cp res/screen/android/splash-xxxhdpi.png platforms/android/app/src/main/res/drawable-port-xxxhdpi/splash.png
-            echo "启动画面已复制到平台目录"
+            echo "启动画面已复制到 drawable-port-* 目录"
+            # 同时复制到 drawable 目录作为 screen.png（兼容旧版本）
+            cp res/screen/android/splash-mdpi.png platforms/android/app/src/main/res/drawable/screen.png || true
           fi
 
       - name: Build APK
