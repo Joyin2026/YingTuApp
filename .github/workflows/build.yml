@@ -1,4 +1,4 @@
-name: Package Website into Android APK
+name: Package Website into Android APK (with Icon & Splash)
 
 on:
   push:
@@ -58,7 +58,6 @@ jobs:
 
           # 启动画面生成（从 img/splash.png）
           if [ -f "../img/splash.png" ]; then
-            # 各密度启动画面尺寸
             convert ../img/splash.png -resize 320x480^ -gravity center -background white -extent 320x480 res/screen/android/splash-mdpi.png
             convert ../img/splash.png -resize 480x800^ -gravity center -background white -extent 480x800 res/screen/android/splash-hdpi.png
             convert ../img/splash.png -resize 720x1280^ -gravity center -background white -extent 720x1280 res/screen/android/splash-xhdpi.png
@@ -74,31 +73,13 @@ jobs:
           # 备份原文件
           cp config.xml config.xml.bak
 
-          # 在 <platform name="android"> 后插入图标和启动画面配置
-          # 先找到 platform 标签行号
-          LINE=$(grep -n '<platform name="android">' config.xml | cut -d: -f1)
-          if [ -n "$LINE" ]; then
-            # 插入图标配置
-            sed -i "${LINE}a \        <icon density=\"mdpi\" src=\"res/icon/android/icon-mdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <icon density=\"hdpi\" src=\"res/icon/android/icon-hdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <icon density=\"xhdpi\" src=\"res/icon/android/icon-xhdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <icon density=\"xxhdpi\" src=\"res/icon/android/icon-xxhdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <icon density=\"xxxhdpi\" src=\"res/icon/android/icon-xxxhdpi.png\" />" config.xml
-            # 插入启动画面配置
-            sed -i "${LINE}a \        <splash density=\"mdpi\" src=\"res/screen/android/splash-mdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <splash density=\"hdpi\" src=\"res/screen/android/splash-hdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <splash density=\"xhdpi\" src=\"res/screen/android/splash-xhdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <splash density=\"xxhdpi\" src=\"res/screen/android/splash-xxhdpi.png\" />" config.xml
-            sed -i "${LINE}a \        <splash density=\"xxxhdpi\" src=\"res/screen/android/splash-xxxhdpi.png\" />" config.xml
-          else
-            echo "错误：未找到 <platform name=\"android\">"
-            exit 1
-          fi
+          # 在 <widget> 标签后插入图标和启动画面配置
+          sed -i '/<widget/ a \    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />\n    <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />\n    <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />\n    <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />\n    <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />\n    <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
 
           # 添加启动画面首选项
           sed -i '/<widget/ a \    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="5000" />\n    <preference name="AutoHideSplashScreen" value="false" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
 
-          # 添加 allow-navigation（可选，但安全）
+          # 添加 allow-navigation
           sed -i '/<widget/ a \    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
 
           echo "config.xml 已更新"
@@ -106,7 +87,7 @@ jobs:
       - name: Copy resources to platform (ensuring they are included)
         run: |
           cd webapp
-          # 复制生成的资源到平台目录（某些情况下需要显式复制）
+          # 复制生成的启动画面到平台目录（确保插件能找到）
           mkdir -p platforms/android/app/src/main/res/drawable-port-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}
           if [ -f "res/screen/android/splash-mdpi.png" ]; then
             cp res/screen/android/splash-mdpi.png platforms/android/app/src/main/res/drawable-port-mdpi/splash.png
@@ -115,7 +96,6 @@ jobs:
             cp res/screen/android/splash-xxhdpi.png platforms/android/app/src/main/res/drawable-port-xxhdpi/splash.png
             cp res/screen/android/splash-xxxhdpi.png platforms/android/app/src/main/res/drawable-port-xxxhdpi/splash.png
           fi
-          # 图标由 Cordova 自动处理，无需额外复制
 
       - name: Build APK
         run: |
