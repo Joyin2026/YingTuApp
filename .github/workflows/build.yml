@@ -31,9 +31,10 @@ jobs:
         run: |
           cordova create webapp com.yingtux.app 影图网
           cd webapp
-          cordova platform add android
-          # 添加 inappbrowser 插件，强制所有链接在应用内打开
+          # 添加 whitelist 和 inappbrowser 插件
+          cordova plugin add cordova-plugin-whitelist
           cordova plugin add cordova-plugin-inappbrowser
+          cordova platform add android
 
       - name: Generate icons
         run: |
@@ -51,15 +52,43 @@ jobs:
         run: |
           cd webapp/www
           mkdir -p img
-          # 使用您提供的 splash.html（确保该文件已在仓库根目录）
-          cp ../../splash.html index.html
+          # 使用增强版的 splash.html
+          cat > index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>启动中...</title>
+    <style>
+        body, html { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background-color:#000; }
+        .splash-container { width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+        .splash-image { width:100%; height:100%; object-fit:cover; }
+    </style>
+</head>
+<body>
+    <div class="splash-container">
+        <img class="splash-image" src="img/splash.png" alt="启动画面" onerror="this.style.display='none'; document.body.style.backgroundColor='white';">
+    </div>
+    <script>
+        // 确保跳转在 WebView 内部进行
+        setTimeout(function() {
+            window.location.href = 'https://www.yingtux.cn';
+        }, 3000);
+    </script>
+</body>
+</html>
+EOF
           cp ../../img/splash.png img/splash.png
 
-      - name: Insert icon config into config.xml
+      - name: Insert icon and navigation config into config.xml
         run: |
           cd webapp
           cp config.xml config.xml.bak
+          # 插入图标
           sed -i '/<widget/ a\    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />' config.xml
+          # 添加全面的导航策略
+          sed -i '/<widget/ a\    <allow-navigation href="*" />\n    <allow-intent href="*" />\n    <access origin="*" />' config.xml
 
       - name: Build APK
         run: |
