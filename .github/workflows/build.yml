@@ -32,11 +32,8 @@ jobs:
           npm install -g cordova
           cordova create webapp com.yingtux.app 影图
           cd webapp
-          # 设置起始页
           sed -i 's|<content src="index.html" />|<content src="https://www.yingtux.cn" />|' config.xml
-          # 添加基础网络权限
           sed -i '/<widget/ a \    <access origin="*" />' config.xml
-          # 添加 Android 平台和启动画面插件
           cordova platform add android
           cordova plugin add cordova-plugin-splashscreen
 
@@ -57,7 +54,7 @@ jobs:
             echo "警告：根目录缺少 logo.png，跳过图标生成"
           fi
 
-          # 启动画面生成（文件名统一为 splash-<density>.png）
+          # 启动画面生成（文件名 splash-<density>.png）
           if [ -f "../img/splash.png" ]; then
             convert ../img/splash.png -resize 320x480^ -gravity center -background white -extent 320x480 res/screen/android/splash-mdpi.png
             convert ../img/splash.png -resize 480x800^ -gravity center -background white -extent 480x800 res/screen/android/splash-hdpi.png
@@ -77,16 +74,16 @@ jobs:
           echo "=== 启动画面文件 ==="
           ls -la res/screen/android/
 
-      - name: Modify config.xml (insert at correct position)
+      - name: Modify config.xml
         run: |
           cd webapp
           cp config.xml config.xml.bak
-          # 在 <widget> 标签内第一行后插入图标和启动画面配置
-          # 先找到 <widget 所在行，并在其第一个 > 后插入新行
+
+          # 插入图标和启动画面配置（作为 <widget> 的子元素）
           awk '/<widget/ {print; print "    <icon density=\"mdpi\" src=\"res/icon/android/icon-mdpi.png\" />"; print "    <icon density=\"hdpi\" src=\"res/icon/android/icon-hdpi.png\" />"; print "    <icon density=\"xhdpi\" src=\"res/icon/android/icon-xhdpi.png\" />"; print "    <icon density=\"xxhdpi\" src=\"res/icon/android/icon-xxhdpi.png\" />"; print "    <icon density=\"xxxhdpi\" src=\"res/icon/android/icon-xxxhdpi.png\" />"; print "    <splash density=\"mdpi\" src=\"res/screen/android/splash-mdpi.png\" />"; print "    <splash density=\"hdpi\" src=\"res/screen/android/splash-hdpi.png\" />"; print "    <splash density=\"xhdpi\" src=\"res/screen/android/splash-xhdpi.png\" />"; print "    <splash density=\"xxhdpi\" src=\"res/screen/android/splash-xxhdpi.png\" />"; print "    <splash density=\"xxxhdpi\" src=\"res/screen/android/splash-xxxhdpi.png\" />"; next}1' config.xml > config.xml.new
           mv config.xml.new config.xml
 
-          # 添加启动画面首选项（直接追加到文件末尾，或插入到合适位置，这里简单追加到 <widget> 块后，但为了安全，我们追加到文件末尾）
+          # 添加启动画面首选项和导航权限
           cat <<EOF >> config.xml
     <preference name="SplashScreen" value="splash" />
     <preference name="SplashScreenDelay" value="3000" />
@@ -95,10 +92,23 @@ jobs:
     <preference name="ShowSplashScreenSpinner" value="false" />
     <allow-navigation href="https://www.yingtux.cn/*" />
 EOF
-          # 确保这些内容在 </widget> 之前，但因为追加在末尾，可能需要调整，简单起见，我们直接追加，Cordova 应该能接受
-          # 但为了更规范，可以尝试插入到 </widget> 前，但追加通常也可工作，因为 preference 和 allow-navigation 是 <widget> 的子元素，可以出现在文件末尾。
           echo "config.xml 修改完成"
           head -30 config.xml
+
+      - name: Copy splash screens to platform native resource directories
+        run: |
+          cd webapp
+          # 将生成的 splash-<density>.png 复制到 platforms/android/app/src/main/res/drawable-<density>/ 并重命名为 splash.png
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            if [ -f "res/screen/android/splash-${density}.png" ]; then
+              mkdir -p platforms/android/app/src/main/res/drawable-${density}
+              cp res/screen/android/splash-${density}.png platforms/android/app/src/main/res/drawable-${density}/splash.png
+              echo "已复制到 platforms/android/app/src/main/res/drawable-${density}/splash.png"
+            fi
+          done
+          # 可选：列出复制后的文件以验证
+          echo "=== 原生资源目录中的启动画面文件 ==="
+          ls -la platforms/android/app/src/main/res/drawable-*/splash.png || echo "未找到"
 
       - name: Build APK
         run: |
