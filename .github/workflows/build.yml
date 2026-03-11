@@ -30,7 +30,6 @@ jobs:
       - name: Create Cordova project
         run: |
           npm install -g cordova
-          # 应用名称改为“影图”
           cordova create webapp com.yingtux.app 影图
           cd webapp
           # 设置起始页为你的网站
@@ -53,6 +52,7 @@ jobs:
             convert ../logo.png -resize 96x96 res/icon/android/icon-xhdpi.png
             convert ../logo.png -resize 144x144 res/icon/android/icon-xxhdpi.png
             convert ../logo.png -resize 192x192 res/icon/android/icon-xxxhdpi.png
+            echo "图标生成成功"
           else
             echo "警告：根目录缺少 logo.png，跳过图标生成"
           fi
@@ -64,6 +64,7 @@ jobs:
             convert ../img/splash.png -resize 720x1280^ -gravity center -background white -extent 720x1280 res/screen/android/splash-xhdpi.png
             convert ../img/splash.png -resize 960x1600^ -gravity center -background white -extent 960x1600 res/screen/android/splash-xxhdpi.png
             convert ../img/splash.png -resize 1280x1920^ -gravity center -background white -extent 1280x1920 res/screen/android/splash-xxxhdpi.png
+            echo "启动画面生成成功"
           else
             echo "警告：img/splash.png 不存在，跳过启动画面生成"
           fi
@@ -71,19 +72,20 @@ jobs:
       - name: Modify config.xml (add icon, splash, preferences)
         run: |
           cd webapp
-          # 备份原文件
           cp config.xml config.xml.bak
 
           # 在 <widget> 标签后插入图标和启动画面配置
           sed -i '/<widget/ a \    <icon density="mdpi" src="res/icon/android/icon-mdpi.png" />\n    <icon density="hdpi" src="res/icon/android/icon-hdpi.png" />\n    <icon density="xhdpi" src="res/icon/android/icon-xhdpi.png" />\n    <icon density="xxhdpi" src="res/icon/android/icon-xxhdpi.png" />\n    <icon density="xxxhdpi" src="res/icon/android/icon-xxxhdpi.png" />\n    <splash density="mdpi" src="res/screen/android/splash-mdpi.png" />\n    <splash density="hdpi" src="res/screen/android/splash-hdpi.png" />\n    <splash density="xhdpi" src="res/screen/android/splash-xhdpi.png" />\n    <splash density="xxhdpi" src="res/screen/android/splash-xxhdpi.png" />\n    <splash density="xxxhdpi" src="res/screen/android/splash-xxxhdpi.png" />' config.xml
 
-          # 添加启动画面首选项（关键：设置自动隐藏）
-          sed -i '/<widget/ a \    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="5000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
+          # 添加启动画面首选项（延迟3秒，自动隐藏）
+          sed -i '/<widget/ a \    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="3000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />' config.xml
 
           # 添加 allow-navigation
           sed -i '/<widget/ a \    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
 
-          echo "config.xml 已更新"
+          echo "config.xml 更新完成"
+          # 输出 config.xml 的前20行以便检查
+          head -20 config.xml
 
       - name: Copy resources to platform (ensuring they are included)
         run: |
@@ -96,6 +98,7 @@ jobs:
             cp res/screen/android/splash-xhdpi.png platforms/android/app/src/main/res/drawable-port-xhdpi/splash.png
             cp res/screen/android/splash-xxhdpi.png platforms/android/app/src/main/res/drawable-port-xxhdpi/splash.png
             cp res/screen/android/splash-xxxhdpi.png platforms/android/app/src/main/res/drawable-port-xxxhdpi/splash.png
+            echo "启动画面已复制到平台目录"
           fi
 
       - name: Build APK
@@ -106,5 +109,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-website-app-with-splash
+          name: yingtu-website-app-with-splash-3s
           path: webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
