@@ -71,7 +71,7 @@ jobs:
         run: |
           cd webapp
           # 首选项 SplashScreen 值设为 screen，与图片文件主体名匹配
-          sed -i '/<widget/ a\    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="3000" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
+          sed -i '/<widget/ a\    <preference name="SplashScreen" value="screen" />\n    <preference name="SplashScreenDelay" value="10" />\n    <preference name="AutoHideSplashScreen" value="true" />\n    <preference name="FadeSplashScreen" value="false" />\n    <preference name="ShowSplashScreenSpinner" value="false" />\n    <allow-navigation href="https://www.yingtux.cn/*" />' config.xml
 
       - name: Copy splash images to native platform directories (rename to screen.png)
         run: |
