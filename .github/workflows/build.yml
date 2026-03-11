@@ -1,4 +1,4 @@
-name: Package Website with Local Splash Page
+name: Package Website with Local Splash and InAppBrowser
 
 on:
   workflow_dispatch:
@@ -32,6 +32,8 @@ jobs:
           cordova create webapp com.yingtux.app 影图网
           cd webapp
           cordova platform add android
+          # 添加 inappbrowser 插件，强制所有链接在应用内打开
+          cordova plugin add cordova-plugin-inappbrowser
 
       - name: Generate icons
         run: |
@@ -49,6 +51,7 @@ jobs:
         run: |
           cd webapp/www
           mkdir -p img
+          # 使用您提供的 splash.html（确保该文件已在仓库根目录）
           cp ../../splash.html index.html
           cp ../../img/splash.png img/splash.png
 
@@ -66,5 +69,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: yingtu-app-with-local-splash
+          name: yingtu-app-with-splash
           path: webapp/platforms/android/app/build/outputs/apk/debug/app-debug.apk
